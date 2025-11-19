@@ -1,0 +1,10 @@
+-- https://github.com/d2learn/xlings
+
+xname = "d2x"
+
+xim = {
+    -- ...
+    xvm = "",
+}
+
+xpkg = "xpkg.lua"
