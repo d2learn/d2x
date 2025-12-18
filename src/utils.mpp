@@ -1,0 +1,78 @@
+export module d2x.utils;
+
+import std;
+
+namespace d2x {
+export namespace utils {
+
+std::vector<std::string> split_string(const std::string& str, char delimiter) {
+    // use std::views and std::ranges to split string
+    std::vector<std::string> result;
+    auto view = str | std::views::split(delimiter);
+    for (const auto& part : view) {
+        result.push_back(std::string(part.begin(), part.end()));
+    }
+    return result;
+}
+
+// TODO: Optimize
+std::string trim_string(const std::string& str) {
+    // Remove ANSI escape sequences manually without regex
+    std::string cleaned;
+    cleaned.reserve(str.size());
+    
+    for (std::size_t i = 0; i < str.size(); ++i) {
+        if (str[i] == '\x1b' && i + 1 < str.size() && str[i + 1] == '[') {
+            // Skip ANSI escape sequence
+            i += 2;
+            while (i < str.size() && str[i] != 'm') {
+                ++i;
+            }
+        } else {
+            cleaned.push_back(str[i]);
+        }
+    }
+    
+    // Trim whitespace using standard algorithms
+    auto start = std::ranges::find_if_not(cleaned, 
+        [](unsigned char ch) { return std::isspace(ch); });
+    auto end = std::ranges::find_if_not(cleaned | std::views::reverse,
+        [](unsigned char ch) { return std::isspace(ch); }).base();
+    
+    return std::string(start, end);
+}
+
+void wait_files_changed(const std::vector<std::string>& files, int out_ms) {
+    bool changed = false;
+    int check_interval = 500; // milliseconds
+
+    auto last_mod_times = [&]() {
+        std::int64_t mod_times = 0;
+        for (const auto& file : files) {
+            //std::println("Debug: Checking file {}", file);
+            // TODO: file need is absolute by d2x-buildtools
+            if (std::filesystem::exists(file)) {
+                auto ftime = std::filesystem::last_write_time(file);
+                mod_times += ftime.time_since_epoch().count();
+            }
+        }
+        return mod_times;
+    };
+
+    auto previous_mod_times = last_mod_times();
+
+    while (!changed) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(check_interval));
+        out_ms -= check_interval;
+        if (out_ms <= 0) { break; }
+
+        auto current_mod_times = last_mod_times();
+        //std::println("Debug: previous_mod_times = {}, current_mod_times = {}", previous_mod_times, current_mod_times);
+        if (current_mod_times != previous_mod_times) {
+            changed = true;
+        }
+    }
+}
+
+} // namespace utils
+} // namespace d2x

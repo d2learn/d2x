@@ -1,0 +1,3 @@
+*.mpp linguist-language=cpp
+*.mpp linguist-detectable=true
+*.mpp linguist-documentation=false

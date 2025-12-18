@@ -3,8 +3,6 @@
 xname = "d2x"
 
 xim = {
-    -- ...
-    xvm = "",
+    xmake = "3.0.4",
+    cpp = "",
 }
-
-xpkg = "xpkg.lua"
