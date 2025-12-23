@@ -4,7 +4,7 @@ import std;
 
 import d2x.log;
 import d2x.utils;
-import d2x.console;
+import d2x.ui;
 import d2x.buildtools;
 
 namespace d2x {
@@ -72,7 +72,7 @@ export void run() {
 
             auto files = btools.get_files_for(target);
 
-            console::print(
+            ui::update(
                 target, files,
                 built_targets, total_targets,
                 output, status
