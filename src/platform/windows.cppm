@@ -4,6 +4,8 @@ module;
 
 export module d2x.platform.windows;
 
+#if defined(_WIN32)
+
 import std;
 
 namespace d2x {
@@ -23,3 +25,5 @@ namespace platform_impl {
     }
 } // namespace platform_impl
 } // namespace d2x
+
+#endif // defined(_WIN32)

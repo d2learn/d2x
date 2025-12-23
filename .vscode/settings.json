@@ -1,6 +1,7 @@
 {
   "files.associations": {
     "*.mcpp": "cpp",
-    "*.mpp": "cpp"
+    "*.mpp": "cpp",
+    "*.cppm": "cpp"
   }
 }
