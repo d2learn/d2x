@@ -5,7 +5,7 @@ import std;
 namespace d2x {
 
 // Common state for console/checker UI
-export struct ConsoleState {
+export struct UIState {
     std::string target;
     std::vector<std::string> target_files;
     int built_targets = 0;
@@ -27,7 +27,7 @@ public:
     virtual void stop() = 0;
     
     // Update the UI state (thread-safe)
-    virtual void update(ConsoleState state) = 0;
+    virtual void update(UIState state) = 0;
     
     // Update AI tips only (thread-safe)
     virtual void update_ai_tips(std::string ai_tips) = 0;

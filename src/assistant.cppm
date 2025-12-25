@@ -86,13 +86,19 @@ public:
         mEnable(true)
     {
         log::info("Initialized Assistant with API URL: {}", api_url);
+
         mLLMClient.model(std::move(model));
         log::info("Using model: {}", model);
+
         mLanguage = platform::get_system_language();
+        if (auto lang = get_env_or_default("D2X_LANG") ; !lang.empty()) {
+            log::info("Overriding system language from D2X_LANG environment variable: {}", lang);
+            mLanguage = lang;
+        }
         if (mLanguage.contains("zh")) {
             mLanguage = "中文";
         } else {
-            mLanguage = "英/中双语";
+            mLanguage = "English(英语)";
         }
         log::info("System language detected: {}", mLanguage);
 
@@ -106,6 +112,9 @@ public:
             log::warning("LLM_API_KEY is not set or using default placeholder. Assistant will be disabled.");
             mEnable = false;
         }
+
+        log::info("Assistant is {}enabled.", mEnable ? "" : "not ");
+
         // sleep 1 second show info for user
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -126,7 +135,7 @@ public:
         
         mLLMClient.clear();
 
-        log::info("Setting original code context for Assistant.");
+        //log::info("Setting original code context for Assistant.");
 
         // system prompt: base + formatted template
         std::string formatted_template = std::vformat(
@@ -150,7 +159,7 @@ public:
 
         if (mCurrentQuestion != question) {
             mCurrentAnswer.clear();
-            log::info("Assistant received new question, starting request.");
+            //log::info("Assistant received new question, starting request.");
             start_request(std::move(question), true);
             mNeedHelpCount = 0;
             return "..."; // optimize for immediate return

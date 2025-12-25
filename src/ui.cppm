@@ -5,8 +5,8 @@ import std;
 import d2x.log;
 import d2x.ui.interface;
 import d2x.ui.loader;
-import d2x.ui.plugin.tui.console_renderer;
-import d2x.ui.plugin.simple_print.backend;
+import d2x.ui.plugin.tui.simple_tui;
+import d2x.ui.plugin.print.simple_print;
 
 namespace d2x {
 
@@ -87,7 +87,7 @@ void update(
         start();
     }
 
-    ConsoleState state;
+    UIState state;
     state.target = std::move(target);
     state.target_files = std::move(target_files);
     state.built_targets = built_targets;

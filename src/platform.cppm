@@ -1,3 +1,7 @@
+module;
+
+#include <cstdlib>
+
 export module d2x.platform;
 
 import std;
@@ -35,6 +39,11 @@ namespace platform {
             // Locale initialization failed, fallback to English
             return "en";
         }
+    }
+
+    // setenv wrapper
+    export void set_env_variable(const std::string& key, const std::string& value) {
+        setenv(key.c_str(), value.c_str(), 1);
     }
 } // namespace platform
 } // namespace d2x

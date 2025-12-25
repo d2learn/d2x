@@ -43,7 +43,7 @@ export void run() {
     auto assistant = d2x::Assistant();
 
     for (const auto& target : targets) {
-        log::info("Checking target: {}", target);
+        //log::info("Checking target: {}", target);
         
         bool build_success { false };
         bool status { false };
@@ -98,9 +98,11 @@ export void run() {
                 ai_tips
             );
 
-            utils::wait_files_changed(files, 20 * 1000);
-            // wait user action to change files to avoid shaking
-            while (utils::wait_files_changed(files, 1 * 1000));
+            if (!build_success) {
+                utils::wait_files_changed(files, 20 * 1000);
+                // wait user action to change files to avoid shaking
+                while (utils::wait_files_changed(files, 1 * 1000));
+            }
         }
     }
 

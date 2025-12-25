@@ -2,10 +2,11 @@ module;
 
 #include <cstdio>
 
-export module d2x.ui.plugin.simple_print.backend;
+export module d2x.ui.plugin.print.simple_print;
 
 import std;
 
+import d2x.utils;
 import d2x.platform;
 import d2x.ui.interface;
 
@@ -14,24 +15,8 @@ namespace d2x {
 
 // Simple print-based backend - no threads, just immediate output
 export class SimplePrintBackend : public IUIBackend {
-    ConsoleState mState;
+    UIState mState;
     std::mutex mConsoleMutex;
-
-private:
-    std::string normalize_path(std::string path) {
-        if (path.empty()) {
-            return "N/A";
-        }
-
-        const auto current = std::filesystem::current_path().string();
-        if (path.find(current) == 0) {
-            path = path.substr(current.length());
-            if (!path.empty() && path.front() == '/') {
-                path.erase(path.begin());
-            }
-        }
-        return path;
-    }
 
 public:
     void start() override {
@@ -47,7 +32,7 @@ public:
         update(mState);
     }
 
-    void update(ConsoleState state) override {
+    void update(UIState state) override {
 
         // add lock
         std::lock_guard lock(mConsoleMutex);
@@ -73,7 +58,7 @@ public:
         auto status_str = state.status ? "✅ Ok: Compilation/Running succeeded" : "❌ Error: Compilation/Running failed";
 
         // target file (relative path)
-        std::string target_file = normalize_path(state.target_files.empty() ? std::string{} : state.target_files[0]);
+        std::string target_file = utils::normalize_path(state.target_files.empty() ? std::string{} : state.target_files[0]);
 
         // layout
         std::println("🌏Progress: [{}] {}/{}", progress_bar, state.built_targets, state.total_targets);

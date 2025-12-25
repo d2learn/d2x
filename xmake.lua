@@ -8,6 +8,8 @@ add_requires("llmapi 0.0.1")
 add_requires("ftxui 6.1.9", {configs = {modules = true}})
 
 target("d2x")
+    set_kind("binary")
+
     add_files("src/main.cpp")
     -- add common module interface units
     add_files("src/**.cppm")

@@ -5,6 +5,19 @@ import std;
 namespace d2x {
 export namespace utils {
 
+std::string normalize_path(std::string path) {
+    if (path.empty()) return "N/A";
+    
+    const auto current = std::filesystem::current_path().string();
+    if (path.find(current) == 0) {
+        path = path.substr(current.length());
+        if (!path.empty() && path.front() == '/') {
+            path.erase(path.begin());
+        }
+    }
+    return path;
+}
+
 std::vector<std::string> split_string(const std::string& str, char delimiter) {
     // use std::views and std::ranges to split string
     std::vector<std::string> result;
