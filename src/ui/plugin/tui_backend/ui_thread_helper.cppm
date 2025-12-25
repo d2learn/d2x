@@ -35,6 +35,14 @@ public:
         state_ = std::move(new_state);
     }
 
+    // Update specific field(s) of the state using a callback
+    template<typename UpdateFn>
+    requires std::invocable<UpdateFn, StateT&>
+    void update_field(UpdateFn&& update_fn) {
+        std::lock_guard lock(state_mutex_);
+        std::forward<UpdateFn>(update_fn)(state_);
+    }
+
     StateT get_state() const {
         std::lock_guard lock(state_mutex_);
         return state_;

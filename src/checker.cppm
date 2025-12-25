@@ -6,6 +6,8 @@ import d2x.log;
 import d2x.utils;
 import d2x.ui;
 import d2x.buildtools;
+import d2x.assistant;
+import d2x.editor;
 
 namespace d2x {
 namespace checker {
@@ -38,12 +40,21 @@ export void run() {
         return;
     }
 
+    auto assistant = d2x::Assistant();
+
     for (const auto& target : targets) {
         log::info("Checking target: {}", target);
         
         bool build_success { false };
         bool status { false };
         auto output = std::string { };
+        bool open_target_file { false };
+
+        auto files = btools.get_files_for(target);
+        // read original code from files[0]
+        auto original_code = utils::read_file_to_string(files[0]);
+
+        assistant.set_original_code(original_code);
 
         while (!build_success) {
 
@@ -63,22 +74,33 @@ export void run() {
                     build_success = false;
                 }
             }
-            
+
             if (build_success) {
                 built_targets += 1;
-            } else {
-                // TODO: open editor...
+            } else if (!open_target_file) {
+                // Open file in editor on first failure
+                for (const auto& file : files) {
+                    editor::open(file);
+                }
+                open_target_file = true;
             }
 
-            auto files = btools.get_files_for(target);
+            // ask ai assistant for tips
+            // ask ai assistant for tips
+            auto ecode = utils::read_file_to_string(files[0]);
+            //auto ai_tips = assistant.ask(ecode, output);
+            auto ai_tips = assistant.ask(ecode, output);
 
             ui::update(
                 target, files,
                 built_targets, total_targets,
-                output, status
+                output, status,
+                ai_tips
             );
 
-            utils::wait_files_changed(files, 10 * 1000);
+            utils::wait_files_changed(files, 20 * 1000);
+            // wait user action to change files to avoid shaking
+            while (utils::wait_files_changed(files, 1 * 1000));
         }
     }
 

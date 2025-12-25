@@ -23,6 +23,11 @@ namespace platform_impl {
         int code = _pclose(pipe);
         return {code, output};
     }
+
+    export void clear_console() {
+        // run by cmd
+        std::system("cls");
+    }
 } // namespace platform_impl
 } // namespace d2x
 

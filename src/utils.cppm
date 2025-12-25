@@ -42,7 +42,7 @@ std::string trim_string(const std::string& str) {
     return std::string(start, end);
 }
 
-void wait_files_changed(const std::vector<std::string>& files, int out_ms) {
+bool wait_files_changed(const std::vector<std::string>& files, int out_ms) {
     bool changed = false;
     int check_interval = 500; // milliseconds
 
@@ -72,6 +72,18 @@ void wait_files_changed(const std::vector<std::string>& files, int out_ms) {
             changed = true;
         }
     }
+
+    return changed;
+}
+
+std::string read_file_to_string(const std::string& filepath) {
+    std::ifstream file_stream(filepath);
+    if (!file_stream.is_open()) {
+        throw std::runtime_error("Failed to open file: " + filepath);
+    }
+    std::stringstream buffer;
+    buffer << file_stream.rdbuf();
+    return buffer.str();
 }
 
 } // namespace utils

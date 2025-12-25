@@ -26,6 +26,10 @@ namespace platform_impl {
 
         return {status, output};
     }
+
+    export void clear_console() {
+        std::system("clear");
+    }
 } // namespace platform_impl
 }
 

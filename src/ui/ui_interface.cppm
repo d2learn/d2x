@@ -12,6 +12,7 @@ export struct ConsoleState {
     int total_targets = 0;
     std::string output;
     bool status = false;
+    std::string ai_tips;
 };
 
 // Abstract UI backend interface - plugins implement this
@@ -27,6 +28,9 @@ public:
     
     // Update the UI state (thread-safe)
     virtual void update(ConsoleState state) = 0;
+    
+    // Update AI tips only (thread-safe)
+    virtual void update_ai_tips(std::string ai_tips) = 0;
 };
 
 // Factory interface for creating UI backends

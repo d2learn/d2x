@@ -5,12 +5,18 @@ module;
 export module d2x.ui.plugin.simple_print.backend;
 
 import std;
+
+import d2x.platform;
 import d2x.ui.interface;
+
 
 namespace d2x {
 
 // Simple print-based backend - no threads, just immediate output
 export class SimplePrintBackend : public IUIBackend {
+    ConsoleState mState;
+    std::mutex mConsoleMutex;
+
 private:
     std::string normalize_path(std::string path) {
         if (path.empty()) {
@@ -36,15 +42,26 @@ public:
         // No-op for simple print
     }
 
+    void update_ai_tips(std::string ai_tips) override {
+        mState.ai_tips = std::move(ai_tips);
+        update(mState);
+    }
+
     void update(ConsoleState state) override {
+
+        // add lock
+        std::lock_guard lock(mConsoleMutex);
+
         // clear screen
-        std::system("clear");
+        d2x::platform::clear_console();
 
         // 🌏Progress: [====>------] x/y
         // x == built targets, current progress
         // y == total targets
-        auto progress_bar = ">"
-            + std::string(state.total_targets - state.built_targets - 1, '-');
+        std::string progress_bar = "";
+
+        if (state.total_targets > state.built_targets)
+            progress_bar += ">" + std::string(state.total_targets - state.built_targets - 1, '-');
 
         if (state.built_targets > 0) {
             progress_bar = std::string(state.built_targets, '=') + progress_bar;
@@ -77,7 +94,12 @@ public:
         std::println("{}", state.output);
         std::println("---\n");
 
-        std::println("d2x: https://github.com/d2learn/d2x");
+        if (state.ai_tips.empty())
+            state.ai_tips = mState.ai_tips;
+
+        std::println("🤡: {}", state.ai_tips);
+
+        mState = std::move(state);
     }
 };
 

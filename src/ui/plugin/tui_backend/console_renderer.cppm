@@ -14,10 +14,14 @@ namespace d2x {
 
 namespace internal {
 
-static const ftxui::Color kPrimary = ftxui::Color::RGB(64, 120, 255);
-static const ftxui::Color kAccent  = ftxui::Color::RGB(120, 213, 255);
-static const ftxui::Color kPanel   = ftxui::Color::RGB(24, 28, 38);
-static const ftxui::Color kTextDim = ftxui::Color::GrayDark;
+static const ftxui::Color kBg         = ftxui::Color::RGB(242, 243, 245);
+static const ftxui::Color kCard       = ftxui::Color::RGB(252, 253, 255);
+static const ftxui::Color kCardBorder = ftxui::Color::RGB(218, 223, 232);
+static const ftxui::Color kAccent     = ftxui::Color::RGB(76, 146, 255);
+static const ftxui::Color kSuccess    = ftxui::Color::RGB(156, 209, 165);
+static const ftxui::Color kTextSubtle = ftxui::Color::RGB(114, 122, 138);
+static const ftxui::Color kTextStrong = ftxui::Color::RGB(40, 50, 70);
+static const ftxui::Color kOutputBg   = ftxui::Color::RGB(22, 24, 30);
 
 ftxui::Decorator color_from_code(int code) {
     switch (code) {
@@ -140,11 +144,16 @@ ftxui::Element build_progress(int built_targets, int total_targets) {
         ? std::clamp(static_cast<double>(built_targets) / static_cast<double>(total_targets), 0.0, 1.0)
         : 0.0;
 
-    return ftxui::hbox({
-        ftxui::text("Progress"),
-        ftxui::separator(),
-        ftxui::gauge(ratio) | ftxui::color(ftxui::Color::Green) | ftxui::flex,
-        ftxui::text(std::format(" {}/{}", built_targets, total_targets)),
+    const int percent = static_cast<int>(std::round(ratio * 100.0));
+
+    return ftxui::vbox({
+        ftxui::text("Progress") | ftxui::bold | ftxui::color(kTextStrong),
+        ftxui::text(" "),
+        ftxui::hbox({
+            ftxui::gauge(ratio) | ftxui::color(kAccent) | ftxui::flex,
+            ftxui::text(std::format(" {}%", percent)) | ftxui::color(kTextSubtle) | ftxui::bold,
+        }),
+        ftxui::text(std::format("Targets: {} / {}", built_targets, total_targets)) | ftxui::color(kTextSubtle),
     });
 }
 
@@ -153,8 +162,10 @@ ftxui::Element build_status(bool status, const std::string& target, const std::s
     const auto status_color = status ? ftxui::Color::Green : ftxui::Color::Red;
 
     return ftxui::vbox({
-        ftxui::hbox({ftxui::text("Target"), ftxui::separator(), ftxui::text(target)}),
-        ftxui::hbox({ftxui::text("File"), ftxui::separator(), ftxui::text(target_file)}),
+        ftxui::text("Status") | ftxui::bold | ftxui::color(kTextStrong),
+        ftxui::text(" "),
+        ftxui::hbox({ftxui::text("Target") | ftxui::color(kTextSubtle), ftxui::separator(), ftxui::text(target) | ftxui::color(kTextStrong)}),
+        ftxui::hbox({ftxui::text("File") | ftxui::color(kTextSubtle), ftxui::separator(), ftxui::text(target_file) | ftxui::color(kTextStrong)}),
         ftxui::text(status_text) | ftxui::color(status_color) | ftxui::bold,
     });
 }
@@ -183,63 +194,87 @@ public:
         ui_thread_->update_state(std::move(state));
     }
 
+    void update_ai_tips(std::string ai_tips) override {
+        // Update only the ai_tips field in the current state
+        ui_thread_->update_field([tips = std::move(ai_tips)](ConsoleState& state) mutable {
+            state.ai_tips = std::move(tips);
+        });
+    }
+
 private:
     void render(const ConsoleState& state) {
         const auto target_file = internal::normalize_path(
             state.target_files.empty() ? std::string{} : state.target_files.front()
         );
 
-        const auto status_badge = ftxui::text(state.status ? "  RUNNING CLEAN  " : "  NEEDS FIX  ")
-            | ftxui::color(ftxui::Color::White)
-            | ftxui::bgcolor(state.status ? internal::kPrimary : ftxui::Color::Red);
-
         const auto spinner_char = internal::spinner();
 
-        auto header = ftxui::window(
-            ftxui::hbox({ftxui::text(" d2x checker ") | ftxui::bold}),
-            ftxui::hbox({
-                ftxui::text(std::format(" {} live reload", spinner_char)) | ftxui::color(internal::kTextDim),
-                ftxui::filler(),
-                status_badge,
-                ftxui::separator(),
-                ftxui::text("github.com/d2learn/d2x") | ftxui::color(internal::kTextDim)
+        const auto status_badge = ftxui::text(state.status ? " RUNNING CLEAN " : " NEEDS FIX ")
+            | ftxui::bgcolor(state.status ? internal::kSuccess : ftxui::Color::LightCoral)
+            | ftxui::color(internal::kTextStrong)
+            | ftxui::borderRounded
+            | ftxui::bold;
+
+        auto live_reload_toggle = ftxui::hbox({
+            ftxui::text("Live Reload") | ftxui::color(internal::kTextSubtle),
+            ftxui::text("  " ),
+            ftxui::text(" ON ") | ftxui::bgcolor(internal::kAccent) | ftxui::color(ftxui::Color::White) | ftxui::borderRounded | ftxui::bold,
+            ftxui::text(std::format("  {}", spinner_char)) | ftxui::color(internal::kTextSubtle),
+        });
+
+        auto card = [](ftxui::Element content) {
+            return ftxui::vbox({
+                ftxui::text(""),
+                ftxui::hbox({ftxui::text("  "), content | ftxui::flex, ftxui::text("  ")}),
+                ftxui::text(""),
+            }) | ftxui::bgcolor(internal::kCard) | ftxui::borderRounded | ftxui::color(internal::kCardBorder);
+        };
+
+        auto header = card(
+            ftxui::vbox({
+                ftxui::text("d2x checker") | ftxui::bold | ftxui::color(internal::kTextStrong),
+                ftxui::text(" "),
+                ftxui::hbox({
+                    live_reload_toggle,
+                    ftxui::filler(),
+                    status_badge,
+                    ftxui::text("  "),
+                    ftxui::text("github.com/d2learn/d2x") | ftxui::color(internal::kTextSubtle),
+                }),
             })
-        ) | ftxui::bgcolor(internal::kPanel);
+        );
 
         const auto output_view = state.output.empty()
-            ? ftxui::paragraph("(no output yet)") | ftxui::color(internal::kTextDim)
+            ? ftxui::paragraph("(no output yet)") | ftxui::color(internal::kTextSubtle)
             : internal::render_ansi_text(state.output);
+
+        auto progress_card = card(internal::build_progress(state.built_targets, state.total_targets));
+        auto status_card = card(
+            ftxui::vbox({
+                internal::build_status(state.status, state.target, target_file),
+                ftxui::text(state.status ? "Everything looks good." : "Fix errors, file will auto-rerun.")
+                    | ftxui::color(state.status ? ftxui::Color::Green : ftxui::Color::Red),
+            })
+        );
+
+        auto output_card = card(
+            ftxui::vbox({
+                ftxui::text("Output") | ftxui::bold | ftxui::color(internal::kTextStrong),
+                ftxui::text(" "),
+                ftxui::vbox({output_view | ftxui::flex})
+                    | ftxui::bgcolor(internal::kOutputBg)
+                    | ftxui::borderRounded
+                    | ftxui::flex,
+            })
+        );
 
         auto document = ftxui::vbox({
             header,
-            ftxui::separator(),
-            ftxui::hbox({
-                ftxui::window(
-                    ftxui::text(" Progress ") | ftxui::color(internal::kTextDim),
-                    ftxui::vbox({
-                        internal::build_progress(state.built_targets, state.total_targets),
-                        ftxui::text(std::format("Targets: {} / {}", state.built_targets, state.total_targets)) 
-                            | ftxui::color(internal::kTextDim),
-                    })
-                ) | ftxui::bgcolor(internal::kPanel) | ftxui::flex,
-
-                ftxui::separator(),
-
-                ftxui::window(
-                    ftxui::text(" Status ") | ftxui::color(internal::kTextDim),
-                    ftxui::vbox({
-                        internal::build_status(state.status, state.target, target_file),
-                        ftxui::text(state.status ? "Everything looks good." : "Fix errors, file will auto-rerun.")
-                            | ftxui::color(state.status ? ftxui::Color::Green : ftxui::Color::Red),
-                    })
-                ) | ftxui::bgcolor(internal::kPanel) | ftxui::flex,
-            }),
-            ftxui::separator(),
-            ftxui::window(
-                ftxui::text(" Output " ) | ftxui::color(internal::kTextDim),
-                output_view
-            ) | ftxui::bgcolor(internal::kPanel),
-        }) | ftxui::borderHeavy | ftxui::bgcolor(ftxui::Color::Black);
+            ftxui::text(" "),
+            ftxui::hbox({progress_card | ftxui::flex, ftxui::text("  "), status_card | ftxui::flex}),
+            ftxui::text(" "),
+            output_card,
+        }) | ftxui::bgcolor(internal::kBg) | ftxui::flex;
 
         auto screen = ftxui::Screen::Create(ftxui::Dimension::Full(), ftxui::Dimension::Full());
         ftxui::Render(screen, document);
