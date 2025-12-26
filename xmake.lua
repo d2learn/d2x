@@ -15,3 +15,5 @@ target("d2x")
     add_files("src/**.cppm")
     add_packages("ftxui", "llmapi")
     set_policy("build.c++.modules", true)
+    -- static link C++ runtime
+    add_ldflags("-static-libstdc++", "-static-libgcc", {force = true})
