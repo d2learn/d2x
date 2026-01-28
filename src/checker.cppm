@@ -91,7 +91,7 @@ export void run() {
             //auto ai_tips = assistant.ask(ecode, output);
             auto ai_tips = assistant.ask(ecode, output);
 
-            ui::update(
+            ui::update_checker_page(
                 target, files,
                 built_targets, total_targets,
                 output, status,

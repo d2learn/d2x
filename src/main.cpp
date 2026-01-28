@@ -11,7 +11,7 @@ d2x command [options] --xxx-xxx
 Environment variables (can also be set via command line options):
 export D2X_LANG=zh or en
 export D2X_LOG_LEVEL=info or debug
-export D2X_UI_BACKEND=simple_print or tui
+export D2X_UI_BACKEND=print or tui
 export D2X_LLM_SYSTEM_PROMPT="You are a helpful programming assistant."
 export LLM_API_KEY="sk-xxxxxx"
 export LLM_API_URL="https://xxx.xxx.com/v1"
@@ -25,12 +25,12 @@ void print_help() {
     std::println("\t book      \t open project's book");
     std::println("\t run       \t run sourcecode file");
     std::println("\t checker   \t run checker for d2x project's exercises");
-    std::println("\t config    \t configure d2x settings");
+    std::println("\t config    \t configure d2x (.d2x.json)");
     std::println("\t help      \t help info\n");
     std::println("Options:");
     std::println("\t --lang <language>          \t set language (zh, en)");
     std::println("\t --log-level <level>        \t set log level (info, debug)");
-    std::println("\t --ui <backend>             \t set UI backend (simple_print, tui)");
+    std::println("\t --ui <backend>             \t set UI backend (print, tui)");
     std::println("\t --llm-prompt <prompt>      \t set LLM system prompt");
     std::println("\t --llm-api-key <key>        \t set LLM API key");
     std::println("\t --llm-api-url <url>        \t set LLM API URL");

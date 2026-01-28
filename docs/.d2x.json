@@ -1,6 +1,6 @@
 {
     "lang": "auto",
-    "ui_backend": "simple_print",
+    "ui_backend": "print",
     "llm": {
         "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
         "api_url": "https://api.deepseek.com/chat/completions",
