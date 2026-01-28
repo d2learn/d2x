@@ -1,0 +1,10 @@
+{
+    "lang": "auto",
+    "ui_backend": "print",
+    "llm": {
+        "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
+        "api_url": "https://api.deepseek.com/chat/completions",
+        "model": "deepseek-chat",
+        "system_prompt": "你是一个现代C++代码和教育专家，通过引导式的方式帮助学生发现并修复代码中的错误。"
+    }
+}

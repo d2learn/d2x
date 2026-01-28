@@ -6,18 +6,11 @@ import mcpplibs.llmapi;
 import d2x.ui;
 import d2x.log;
 import d2x.platform;
+import d2x.config;
 
 namespace d2x {
 
 using namespace mcpplibs;
-
-// 安全获取环境变量的辅助函数
-[[nodiscard]] std::string get_env_or_default(const char* name, std::string_view default_value = "") {
-    if (const char* value = std::getenv(name); value != nullptr) {
-        return value;
-    }
-    return std::string{default_value};
-}
 
 // 系统提示模板，使用constexpr string_view避免运行时字符串构造
 std::string system_prompt = R"(
@@ -59,7 +52,7 @@ constexpr std::string_view user_prompt_template = R"(
 
 
 export class Assistant {
-    llmapi::Client mLLMClient;
+    std::optional<llmapi::Client> mLLMClient;
 
     // 流式请求状态
     mutable std::mutex mAnswerMutex;
@@ -72,28 +65,29 @@ export class Assistant {
     bool mEnable;
 
 public:
-    explicit Assistant(
-        std::string api_key = get_env_or_default("LLM_API_KEY", "sk-xxx"),
-        std::string api_url = get_env_or_default("LLM_API_URL", llmapi::URL::DeepSeek),
-        std::string model = get_env_or_default("LLM_API_MODEL", "deepseek-chat")
-    ) : mLLMClient(std::move(api_key), std::move(api_url)),
-        mCurrentAnswer(),
+    explicit Assistant() : mCurrentAnswer(),
         mCurrentQuestion("NULL"),
         mIsProcessing(false),
         mRequestThread(),
         mLanguage("en"),
         mNeedHelpCount(0),
-        mEnable(true)
+        mEnable(Config::is_llm_enabled())
     {
-        log::info("Initialized Assistant with API URL: {}", api_url);
+        if (mEnable) {
+            mLLMClient.emplace(Config::api_key(), Config::api_url());
+            log::info("Initialized Assistant with API URL: {}", Config::api_url());
 
-        mLLMClient.model(std::move(model));
-        log::info("Using model: {}", model);
+            mLLMClient->model(Config::model());
+            log::info("Using model: {}", Config::model());
+        } else {
+            log::info("Assistant is disabled (no LLM API key configured).");
+        }
 
         mLanguage = platform::get_system_language();
-        if (auto lang = get_env_or_default("D2X_LANG") ; !lang.empty()) {
-            log::info("Overriding system language from D2X_LANG environment variable: {}", lang);
-            mLanguage = lang;
+        std::string config_lang = Config::lang();
+        if (!config_lang.empty() && config_lang != "auto") {
+            log::info("Using language from config: {}", config_lang);
+            mLanguage = config_lang;
         }
         if (mLanguage.contains("zh")) {
             mLanguage = "中文";
@@ -102,15 +96,10 @@ public:
         }
         log::info("System language detected: {}", mLanguage);
 
-        // get D2X_LLM_SYSTEM_PROMPT env to override
-        if (const auto env_prompt = get_env_or_default("D2X_LLM_SYSTEM_PROMPT"); !env_prompt.empty()) {
-            system_prompt = env_prompt;
-            log::info("Overriding system prompt from D2X_LLM_SYSTEM_PROMPT environment variable.");
-        }
-
-        if (api_key == "sk-xxx" || api_key.empty()) {
-            log::warning("LLM_API_KEY is not set or using default placeholder. Assistant will be disabled.");
-            mEnable = false;
+        // Override system prompt from config/env
+        if (!Config::system_prompt().empty()) {
+            system_prompt = Config::system_prompt();
+            log::info("Overriding system prompt from configuration.");
         }
 
         log::info("Assistant is {}enabled.", mEnable ? "" : "not ");
@@ -130,10 +119,9 @@ public:
 
 public:
     void set_original_code(std::string_view original_code) {
+        if (!mEnable || !mLLMClient.has_value()) return;
 
-        if (!mEnable) return;
-        
-        mLLMClient.clear();
+        mLLMClient->clear();
 
         //log::info("Setting original code context for Assistant.");
 
@@ -145,12 +133,11 @@ public:
 
         std::string full_prompt = system_prompt + formatted_template;
 
-        mLLMClient.system(std::move(full_prompt));
+        mLLMClient->system(std::move(full_prompt));
     }
 
     std::string ask(std::string ecode, std::string output) {
-
-        if (!mEnable) return "AI Disabled / 未启用 - https://github.com/d2learn/d2x";
+        if (!mEnable || !mLLMClient.has_value()) return "AI Disabled / 未启用 - https://github.com/d2learn/d2x";
 
         std::string question = std::vformat(
             user_prompt_template,
@@ -203,7 +190,7 @@ private:
                     ui::update_ai_tips(mCurrentAnswer);
                 };
  
-                mLLMClient.user(mCurrentQuestion)
+                mLLMClient->user(mCurrentQuestion)
                     .request(capture_stream);
             } catch (...) {
                 // 忽略异常，保留已接收的部分答案

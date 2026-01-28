@@ -14,8 +14,16 @@ import d2x.platform.linux;
 
 namespace d2x {
 namespace platform {
+
+    static std::string gRundir = std::filesystem::current_path().string();
+
     export using platform_impl::run_command_capture;
     export using platform_impl::clear_console;
+    export using platform_impl::get_home_dir;
+
+    export [[nodiscard]] std::string get_rundir() {
+        return gRundir;
+    }
 
     export [[nodiscard]] std::string get_system_language() {
         try {
