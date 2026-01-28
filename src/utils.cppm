@@ -99,6 +99,25 @@ std::string read_file_to_string(const std::string& filepath) {
     return buffer.str();
 }
 
+[[nodiscard]] std::string strip_ansi(const std::string& str) {
+    std::string cleaned;
+    cleaned.reserve(str.size());
+
+    for (std::size_t i = 0; i < str.size(); ++i) {
+        if (str[i] == '\x1b' && i + 1 < str.size() && str[i + 1] == '[') {
+            // Skip ANSI escape sequence (ESC[...m)
+            i += 2;
+            while (i < str.size() && str[i] != 'm') {
+                ++i;
+            }
+        } else {
+            cleaned.push_back(str[i]);
+        }
+    }
+
+    return cleaned;
+}
+
 [[nodiscard]] std::string get_env_or_default(std::string_view name, std::string_view default_value = "") {
     if (const char* value = std::getenv(name.data()); value != nullptr) {
         return value;

@@ -34,6 +34,17 @@ namespace platform_impl {
         if (const char* appdata = std::getenv("APPDATA")) return appdata;
         return ".";
     }
+
+    export bool xlings_install() {
+        std::println("正在安装 xlings...");
+        int status = std::system("powershell -Command \"irm https://d2learn.org/xlings-install.ps1.txt | iex\"");
+        if (status == 0) {
+            std::println("xlings 安装成功！");
+            return true;
+        }
+        std::println("xlings 安装失败");
+        return false;
+    }
 } // namespace platform_impl
 } // namespace d2x
 
