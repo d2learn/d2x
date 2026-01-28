@@ -3,6 +3,7 @@ import std;
 import d2x.log;
 import d2x.checker;
 import d2x.platform;
+import d2x.config;
 
 /*
 d2x command [options] --xxx-xxx
@@ -17,7 +18,7 @@ export LLM_API_URL="https://xxx.xxx.com/v1"
 */
 
 void print_help() {
-    std::println("d2x version: 0.1.0\n");
+    std::println("d2x version: {}\n", d2x::D2XInfo::VERSION);
     std::println("Usage: $ d2x [command] [target] [options]\n");
     std::println("Commands:");
     std::println("\t new       \t create new d2x project");
@@ -105,10 +106,13 @@ int main(int argc, char* argv[]) {
         std::println("TODO: Creating new d2x project...");
     } else if (command == "book") {
         // if book exists, open it by mdbook
-        if (std::filesystem::exists("book")) {
-            std::system("mdbook serve --open book");
+        auto rundir = d2x::platform::get_rundir();
+        auto bookdir = std::filesystem::path(rundir) / "book";
+        std::println("Opening book in directory: {}", bookdir.string());
+        if (std::filesystem::exists(bookdir)) {
+            std::system(("mdbook serve --open " + bookdir.string()).c_str());
         } else {
-            std::println("Error: No book found in the current directory.");
+            std::println("Error: No book found in directory: {}", bookdir.string());
         }
     } else if (command == "run") {
         std::println("TODO: Running sourcecode file...");
