@@ -4,6 +4,7 @@ import d2x.log;
 import d2x.checker;
 import d2x.platform;
 import d2x.config;
+import d2x.xlings;
 
 /*
 d2x command [options] --xxx-xxx
@@ -22,8 +23,10 @@ void print_help() {
     std::println("Usage: $ d2x [command] [target] [options]\n");
     std::println("Commands:");
     std::println("\t new       \t create new d2x project");
+    std::println("\t install   \t install d2x package via xlings");
+    std::println("\t list      \t list available d2x packages");
     std::println("\t book      \t open project's book");
-    std::println("\t run       \t run sourcecode file");
+    //std::println("\t run       \t run sourcecode file");
     std::println("\t checker   \t run checker for d2x project's exercises");
     std::println("\t config    \t configure d2x (.d2x.json)");
     std::println("\t help      \t help info\n");
@@ -121,6 +124,17 @@ int main(int argc, char* argv[]) {
             d2x::checker::run();
     } else if (command == "config") {
         d2x::Config::run_interactive_config();
+    } else if (command == "install") {
+        std::string package = argc >= 3 ? argv[2] : "";
+        if (package.empty()) {
+            std::println("Usage: d2x install <package-name>");
+            std::println("Example: d2x install d2mcpp");
+            return 1;
+        }
+        d2x::xlings::install(package);
+    } else if (command == "list") {
+        std::string query = argc >= 3 ? argv[2] : "";
+        d2x::xlings::list(query);
     } else {
         std::println("Unknown command: {}", command);
         std::println("Use 'd2x help' for usage information");

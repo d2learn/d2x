@@ -35,6 +35,17 @@ namespace platform_impl {
         if (const char* home = std::getenv("HOME")) return home;
         return ".";
     }
+
+    export bool xlings_install() {
+        std::println("正在安装 xlings...");
+        int status = std::system("curl -fsSL https://d2learn.org/xlings-install.sh | bash");
+        if (status == 0) {
+            std::println("xlings 安装成功！");
+            return true;
+        }
+        std::println("xlings 安装失败");
+        return false;
+    }
 } // namespace platform_impl
 }
 
