@@ -171,31 +171,6 @@ public:
         return std::filesystem::path(platform::get_rundir()) / ".d2x.json";
     }
 
-    static void print_separator(const std::string& title) {
-        std::println("\n\033[1;36m=== {} ===\033[0m", title);
-    }
-
-    static void print_config(const ConfigData& cfg) {
-        std::println("\n当前配置:");
-        std::println("  lang:         {}", cfg.lang.empty() ? "(自动检测)" : cfg.lang);
-        std::println("  ui_backend:   {}", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
-        std::println("  llm.api_key:      {}", cfg.llm.api_key.empty() ? "(未设置)" : cfg.llm.api_key.substr(0, 10) + "...");
-        std::println("  llm.api_url:      {}", cfg.llm.api_url.empty() ? "(未设置)" : cfg.llm.api_url);
-        std::println("  llm.model:        {}", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
-        std::println("  llm.system_prompt: {}", cfg.llm.system_prompt.empty() ? "(未设置)" : cfg.llm.system_prompt.substr(0, 30) + "...");
-    }
-
-    static std::string ask_input(const std::string& prompt, const std::string& default_value = "") {
-        std::string display_default = default_value.empty() ? "(空)" : default_value;
-        std::print("{} [{}]: ", prompt, display_default);
-        std::cout.flush();
-
-        std::string input;
-        if (!std::getline(std::cin, input)) return default_value;
-
-        return input.empty() ? default_value : input;
-    }
-
     static void backup_config(const std::string& path) {
         try {
             auto now = std::chrono::system_clock::now();
@@ -282,7 +257,7 @@ public:
     }
 
     static void run_interactive_config() {
-        print_separator("d2x 配置向导");
+        utils::print_separator("d2x 配置向导");
 
         // Choose scope
         std::println("\n请选择配置范围:");
@@ -307,7 +282,7 @@ public:
         std::string config_path = get_config_path(scope);
         std::string scope_name = scope == Scope::Global ? "全局" : "本地";
 
-        print_separator(std::string{} + scope_name + "配置");
+        utils::print_separator(scope_name + "配置");
 
         // Load existing config with error handling
         auto [has_error, cfg] = load_config_with_error_handling(config_path);
@@ -316,7 +291,7 @@ public:
         if (exists && !has_error) {
             std::println("找到现有配置文件: {}", config_path);
             print_config(cfg);
-            if (!utils::ask_yes_no("是否修改配置?", false)) {
+            if (!utils::ask_yes_no("\n是否修改配置?", false)) {
                 std::println("操作已取消。");
                 return;
             }
@@ -324,21 +299,31 @@ public:
 
         // Collect new config
         ConfigData new_cfg;
-        new_cfg.lang = ask_input("Language (zh/en/auto)", cfg.lang.empty() ? std::string{ConfigData::DEFAULT_LANG} : cfg.lang);
-        new_cfg.ui_backend = ask_input("UI Backend", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
-        new_cfg.llm.api_key = ask_input("LLM API Key", cfg.llm.api_key);
-        new_cfg.llm.api_url = ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{llmapi::URL::DeepSeek} : cfg.llm.api_url);
-        new_cfg.llm.model = ask_input("LLM Model", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
-        new_cfg.llm.system_prompt = ask_input("LLM System Prompt", cfg.llm.system_prompt);
+        new_cfg.lang = utils::ask_input("Language (zh/en/auto)", cfg.lang.empty() ? std::string{ConfigData::DEFAULT_LANG} : cfg.lang);
+        new_cfg.ui_backend = utils::ask_input("UI Backend", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
+        new_cfg.llm.api_key = utils::ask_input("LLM API Key", cfg.llm.api_key);
+        new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{llmapi::URL::DeepSeek} : cfg.llm.api_url);
+        new_cfg.llm.model = utils::ask_input("LLM Model", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
+        new_cfg.llm.system_prompt = utils::ask_input("LLM System Prompt", cfg.llm.system_prompt);
 
-        print_separator("配置预览");
+        utils::print_separator("配置预览");
         print_config(new_cfg);
 
-        if (utils::ask_yes_no("确认保存配置?", true)) {
+        if (utils::ask_yes_no("\n确认保存配置?", true)) {
             save_config(config_path, new_cfg);
         } else {
             std::println("操作已取消。");
         }
+    }
+
+    static void print_config(const ConfigData& cfg) {
+        std::println("\n当前配置:");
+        std::println("  lang:         {}", cfg.lang.empty() ? "(自动检测)" : cfg.lang);
+        std::println("  ui_backend:   {}", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
+        std::println("  llm.api_key:      {}", cfg.llm.api_key.empty() ? "(未设置)" : cfg.llm.api_key.substr(0, 10) + "...");
+        std::println("  llm.api_url:      {}", cfg.llm.api_url.empty() ? "(未设置)" : cfg.llm.api_url);
+        std::println("  llm.model:        {}", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
+        std::println("  llm.system_prompt: {}", cfg.llm.system_prompt.empty() ? "(未设置)" : cfg.llm.system_prompt.substr(0, 30) + "...");
     }
 };
 

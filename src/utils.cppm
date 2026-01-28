@@ -119,5 +119,20 @@ bool ask_yes_no(const std::string& question, bool default_yes = false) {
     return input[0] == 'y' || input[0] == 'Y';
 }
 
+std::string ask_input(const std::string& prompt, const std::string& default_value = "") {
+    std::string display_default = default_value.empty() ? "(空)" : default_value;
+    std::print("{} [{}]: ", prompt, display_default);
+    std::cout.flush();
+
+    std::string input;
+    if (!std::getline(std::cin, input)) return default_value;
+
+    return input.empty() ? default_value : input;
+}
+
+void print_separator(const std::string& title) {
+    std::println("\n=== {} ===", title);
+}
+
 } // namespace utils
 } // namespace d2x
