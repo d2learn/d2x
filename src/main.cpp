@@ -18,13 +18,14 @@ export LLM_API_URL="https://xxx.xxx.com/v1"
 */
 
 void print_help() {
-    std::println("d2x version: {}\n", d2x::D2XInfo::VERSION);
+    std::println("d2x version: {}\n", d2x::Info::VERSION);
     std::println("Usage: $ d2x [command] [target] [options]\n");
     std::println("Commands:");
     std::println("\t new       \t create new d2x project");
     std::println("\t book      \t open project's book");
     std::println("\t run       \t run sourcecode file");
     std::println("\t checker   \t run checker for d2x project's exercises");
+    std::println("\t config    \t configure d2x settings");
     std::println("\t help      \t help info\n");
     std::println("Options:");
     std::println("\t --lang <language>          \t set language (zh, en)");
@@ -70,22 +71,22 @@ CommandOptions parse_options(int argc, char* argv[], int start_idx) {
 
 void apply_options(const CommandOptions& opts) {
     if (opts.lang) {
-        d2x::platform::set_env_variable("D2X_LANG", *opts.lang);
+        d2x::platform::set_env_variable(std::string{d2x::EnvVars::D2X_LANG}, *opts.lang);
     }
     if (opts.log_level) {
         d2x::platform::set_env_variable("D2X_LOG_LEVEL", *opts.log_level);
     }
     if (opts.ui_backend) {
-        d2x::platform::set_env_variable("D2X_UI_BACKEND", *opts.ui_backend);
+        d2x::platform::set_env_variable(std::string{d2x::EnvVars::D2X_UI_BACKEND}, *opts.ui_backend);
     }
     if (opts.llm_prompt) {
-        d2x::platform::set_env_variable("D2X_LLM_SYSTEM_PROMPT", *opts.llm_prompt);
+        d2x::platform::set_env_variable(std::string{d2x::EnvVars::D2X_LLM_SYSTEM_PROMPT}, *opts.llm_prompt);
     }
     if (opts.llm_api_key) {
-        d2x::platform::set_env_variable("LLM_API_KEY", *opts.llm_api_key);
+        d2x::platform::set_env_variable(std::string{d2x::EnvVars::D2X_LLM_API_KEY}, *opts.llm_api_key);
     }
     if (opts.llm_api_url) {
-        d2x::platform::set_env_variable("LLM_API_URL", *opts.llm_api_url);
+        d2x::platform::set_env_variable(std::string{d2x::EnvVars::D2X_LLM_API_URL}, *opts.llm_api_url);
     }
 }
 
@@ -118,6 +119,8 @@ int main(int argc, char* argv[]) {
         std::println("TODO: Running sourcecode file...");
     } else if (command == "checker") {
             d2x::checker::run();
+    } else if (command == "config") {
+        d2x::Config::run_interactive_config();
     } else {
         std::println("Unknown command: {}", command);
         std::println("Use 'd2x help' for usage information");

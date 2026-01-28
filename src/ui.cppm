@@ -3,6 +3,7 @@ export module d2x.ui;
 import std;
 
 import d2x.log;
+import d2x.config;
 import d2x.ui.interface;
 import d2x.ui.loader;
 import d2x.ui.plugin.tui.simple_tui;
@@ -36,10 +37,7 @@ export namespace ui {
 void start() {
     if (!internal::g_ui_backend) {
         init_ui_system();
-        // Default to simple_print backend
-        // read ENV variable D2X_UI_BACKEND for backend choice in future
-        const char* backend_env = std::getenv("D2X_UI_BACKEND");
-        const std::string backend = backend_env ? backend_env : "simple_print";
+        std::string backend = Config::ui_backend();
         log::info("Starting UI with backend: {}", backend);
         internal::g_ui_backend = UILoader::load(backend);
         log::info("UI backend '{}' loaded.", backend);

@@ -28,6 +28,12 @@ namespace platform_impl {
         // run by cmd
         std::system("cls");
     }
+
+    export std::string get_home_dir() {
+        if (const char* home = std::getenv("USERPROFILE")) return home;
+        if (const char* appdata = std::getenv("APPDATA")) return appdata;
+        return ".";
+    }
 } // namespace platform_impl
 } // namespace d2x
 

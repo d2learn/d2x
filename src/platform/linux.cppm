@@ -30,6 +30,11 @@ namespace platform_impl {
     export void clear_console() {
         std::system("clear");
     }
+
+    export std::string get_home_dir() {
+        if (const char* home = std::getenv("HOME")) return home;
+        return ".";
+    }
 } // namespace platform_impl
 }
 

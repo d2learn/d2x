@@ -99,5 +99,25 @@ std::string read_file_to_string(const std::string& filepath) {
     return buffer.str();
 }
 
+[[nodiscard]] std::string get_env_or_default(std::string_view name, std::string_view default_value = "") {
+    if (const char* value = std::getenv(name.data()); value != nullptr) {
+        return value;
+    }
+    return std::string{default_value};
+}
+
+bool ask_yes_no(const std::string& question, bool default_yes = false) {
+    std::string prompt = default_yes ? "[Y/n] " : "[y/N] ";
+    std::print("{}{}", question, prompt);
+    std::cout.flush();
+
+    std::string input;
+    if (!std::getline(std::cin, input)) return default_yes;
+
+    if (input.empty()) return default_yes;
+
+    return input[0] == 'y' || input[0] == 'Y';
+}
+
 } // namespace utils
 } // namespace d2x
