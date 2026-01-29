@@ -28,6 +28,9 @@ struct EnvVars {
     // Language
     static constexpr std::string_view D2X_LANG = "D2X_LANG";
 
+    // BuildTools
+    static constexpr std::string_view D2X_BUILDTOOLS = "D2X_BUILDTOOLS";
+
     // LLM
     static constexpr std::string_view D2X_LLM_API_KEY = "D2X_LLM_API_KEY";
     static constexpr std::string_view D2X_LLM_API_URL = "D2X_LLM_API_URL";
@@ -57,12 +60,14 @@ public:
     struct ConfigData {
         std::string lang;
         std::string ui_backend;
+        std::string buildtools;
         LLMConfig llm;
 
         // Defaults
         static constexpr std::string_view DEFAULT_UI_BACKEND = "tui";
         static constexpr std::string_view DEFAULT_LANG = "en";
         static constexpr std::string_view DEFAULT_MODEL = "deepseek-chat";
+        static constexpr std::string_view DEFAULT_BUILDTOOLS = "xmake d2x-buildtools";
     };
 
 private:
@@ -90,6 +95,7 @@ private:
         // Fill missing values from environment variables
         if (mData.lang.empty()) mData.lang = utils::get_env_or_default(EnvVars::D2X_LANG);
         if (mData.ui_backend.empty()) mData.ui_backend = utils::get_env_or_default(EnvVars::D2X_UI_BACKEND);
+        if (mData.buildtools.empty()) mData.buildtools = utils::get_env_or_default(EnvVars::D2X_BUILDTOOLS);
         if (mData.llm.api_key.empty()) mData.llm.api_key = utils::get_env_or_default(EnvVars::D2X_LLM_API_KEY);
         if (mData.llm.api_url.empty()) mData.llm.api_url = utils::get_env_or_default(EnvVars::D2X_LLM_API_URL);
         if (mData.llm.model.empty()) mData.llm.model = utils::get_env_or_default(EnvVars::D2X_LLM_API_MODEL, "deepseek-chat");
@@ -101,6 +107,7 @@ private:
             auto json = nlohmann::json::parse(std::ifstream(path));
             mData.lang = json.value("lang", "");
             mData.ui_backend = json.value("ui_backend", "");
+            mData.buildtools = json.value("buildtools", "");
 
             // Load LLM config from nested "llm" object (new format) or flat keys (legacy)
             if (json.contains("llm") && json["llm"].is_object()) {
@@ -126,6 +133,7 @@ private:
             auto json = nlohmann::json::parse(std::ifstream(path));
             if (mData.lang.empty()) mData.lang = json.value("lang", "");
             if (mData.ui_backend.empty()) mData.ui_backend = json.value("ui_backend", "");
+            if (mData.buildtools.empty()) mData.buildtools = json.value("buildtools", "");
 
             if (json.contains("llm") && json["llm"].is_object()) {
                 auto& llm = json["llm"];
@@ -157,6 +165,9 @@ public:
     // UI getters
     [[nodiscard]] static const std::string& ui_backend() { return instance().mData.ui_backend; }
 
+    // BuildTools getter
+    [[nodiscard]] static const std::string& buildtools() { return instance().mData.buildtools; }
+
     // LLM getters
     [[nodiscard]] static const std::string& api_key() { return instance().mData.llm.api_key; }
     [[nodiscard]] static const std::string& api_url() { return instance().mData.llm.api_url; }
@@ -166,9 +177,9 @@ public:
 
     static std::string get_config_path(Scope scope) {
         if (scope == Scope::Global) {
-            return std::filesystem::path(platform::get_home_dir()) / ".d2x.json";
+            return (std::filesystem::path(platform::get_home_dir()) / ".d2x.json").string();
         }
-        return std::filesystem::path(platform::get_rundir()) / ".d2x.json";
+        return (std::filesystem::path(platform::get_rundir()) / ".d2x.json").string();
     }
 
     static void backup_config(const std::string& path) {
@@ -201,6 +212,7 @@ public:
             auto json = nlohmann::json::parse(std::ifstream(path));
             cfg.lang = json.value("lang", "");
             cfg.ui_backend = json.value("ui_backend", "");
+            cfg.buildtools = json.value("buildtools", "");
 
             // Load LLM config from nested "llm" object
             if (json.contains("llm") && json["llm"].is_object()) {
@@ -238,6 +250,7 @@ public:
         nlohmann::json json;
         json["lang"] = cfg.lang;
         json["ui_backend"] = cfg.ui_backend;
+        json["buildtools"] = cfg.buildtools;
 
         // Save LLM config to nested "llm" object
         nlohmann::json llm_json;
@@ -301,8 +314,11 @@ public:
         ConfigData new_cfg;
         new_cfg.lang = utils::ask_input("Language (zh/en/auto)", cfg.lang.empty() ? std::string{ConfigData::DEFAULT_LANG} : cfg.lang);
         new_cfg.ui_backend = utils::ask_input("UI Backend", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
+        new_cfg.buildtools = utils::ask_input("BuildTools", cfg.buildtools.empty() ? std::string{ConfigData::DEFAULT_BUILDTOOLS} : cfg.buildtools);
         new_cfg.llm.api_key = utils::ask_input("LLM API Key", cfg.llm.api_key);
-        new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{llmapi::URL::DeepSeek} : cfg.llm.api_url);
+        // TODO: msvc cannot access llmapi::URL::DeepSeek?
+        //new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{llmapi::URL::DeepSeek} : cfg.llm.api_url);
+        new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{"https://api.deepseek.com/v1"} : cfg.llm.api_url);
         new_cfg.llm.model = utils::ask_input("LLM Model", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
         new_cfg.llm.system_prompt = utils::ask_input("LLM System Prompt", cfg.llm.system_prompt);
 
@@ -320,6 +336,7 @@ public:
         std::println("\n当前配置:");
         std::println("  lang:         {}", cfg.lang.empty() ? "(自动检测)" : cfg.lang);
         std::println("  ui_backend:   {}", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
+        std::println("  buildtools:   {}", cfg.buildtools.empty() ? std::string{ConfigData::DEFAULT_BUILDTOOLS} : cfg.buildtools);
         std::println("  llm.api_key:      {}", cfg.llm.api_key.empty() ? "(未设置)" : cfg.llm.api_key.substr(0, 10) + "...");
         std::println("  llm.api_url:      {}", cfg.llm.api_url.empty() ? "(未设置)" : cfg.llm.api_url);
         std::println("  llm.model:        {}", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);

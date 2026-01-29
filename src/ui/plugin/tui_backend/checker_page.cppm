@@ -34,6 +34,9 @@ public:
 
         mAnimation_frame__++;
         render();
+        // TODO: fix output issue on wondows terminal 
+        // workaround by double render for first frame
+        if (mAnimation_frame__ == 1) render();
     }
 
 private:
@@ -45,6 +48,10 @@ private:
         std::istringstream iss(text);
         std::string line;
         while (std::getline(iss, line)) {
+            // Strip Windows carriage return (\r)
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
             lines.push_back(line);
         }
         return lines;

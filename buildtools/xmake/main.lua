@@ -13,7 +13,8 @@ function list()
         for _, file in ipairs(files) do
             file = path.absolute(file)
             if flag then
-                printf(": " .. file)
+                --printf(": " .. file) -- avoid C:\ issue on Windows
+                printf("@ " .. file)
                 flag = false
             else
                 printf(", " .. file)

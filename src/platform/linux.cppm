@@ -1,6 +1,7 @@
 module;
 
 #include <cstdio>
+#include <cstdlib>
 
 export module d2x.platform.linux;
 
@@ -41,10 +42,21 @@ namespace platform_impl {
         int status = std::system("curl -fsSL https://d2learn.org/xlings-install.sh | bash");
         if (status == 0) {
             std::println("xlings 安装成功！");
+            // add xlings to PATH /home/xlings/.xlings_data/bin
+            std::string xlings_path = "/home/xlings/.xlings_data/bin";
+            char* path_env = std::getenv("PATH");
+            if (path_env) {
+                std::string new_path = std::string(path_env) + ":" + xlings_path;
+                ::setenv("PATH", new_path.c_str(), 1);
+            }
             return true;
         }
         std::println("xlings 安装失败");
         return false;
+    }
+
+    export void set_env_variable(const std::string& key, const std::string& value) {
+        ::setenv(key.c_str(), value.c_str(), 1);
     }
 } // namespace platform_impl
 }

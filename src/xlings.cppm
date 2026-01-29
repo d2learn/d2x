@@ -8,32 +8,32 @@ import d2x.utils;
 namespace d2x {
 namespace xlings {
 
-export [[nodiscard]] bool has_xlings() {
-    auto [status, _] = d2x::platform::run_command_capture("xlings");
-    return status == 0;
+[[nodiscard]] bool has_xlings() {
+    auto [status, output] = d2x::platform::run_command_capture("xlings");
+    auto clean_output = d2x::utils::strip_ansi(output);
+    return status == 0 && clean_output.find("xlings version") != std::string::npos;
+}
+
+bool ensure_xlings_installed() {
+    if (!has_xlings()) {
+        if (!d2x::utils::ask_yes_no("xlings 未安装，是否现在安装?", true)) {
+            std::println("已取消安装");
+            return false;
+        }
+
+        if (!d2x::platform::xlings_install()) {
+            std::println("xlings 安装失败");
+            return false;
+        }
+    }
+    return true;
 }
 
 export bool install(const std::string& pkgname) {
 
     std::println("开始安装 -> {}", pkgname);
 
-    // Check if xlings is installed
-    if (!has_xlings()) {
-        std::print("xlings 未安装，是否现在安装? [Y/n]: ");
-        std::cout.flush();
-        std::string input;
-        if (!std::getline(std::cin, input)) return false;
-        if (!input.empty() && input[0] != 'y' && input[0] != 'Y') {
-            std::println("已取消安装");
-            return false;
-        }
-
-        std::println("正在安装 xlings...");
-        if (!d2x::platform::xlings_install()) {
-            std::println("xlings 安装失败");
-            return false;
-        }
-    }
+    ensure_xlings_installed();
 
     // Install the package
     std::string command = "xlings install d2x:" + pkgname;
@@ -49,6 +49,9 @@ export bool install(const std::string& pkgname) {
 }
 
 export void list(const std::string& query = "") {
+
+    ensure_xlings_installed();
+
     std::string command = "xim -s d2x:" + query;
     auto [status, output] = d2x::platform::run_command_capture(command);
 

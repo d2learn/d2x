@@ -2,6 +2,7 @@ export module d2x.buildtools;
 
 import std;
 
+import d2x.config;
 import d2x.platform;
 import d2x.utils;
 import d2x.log;
@@ -83,7 +84,7 @@ public:
 
         auto lines = d2x::utils::split_string(output, '\n');
         for (const auto& line : lines) {
-            auto parts = d2x::utils::split_string(line, ':');
+            auto parts = d2x::utils::split_string(line, '@');
             if (parts.size() != 2) continue;
             auto target_name = d2x::utils::trim_string(parts[0]);
             auto files_str = d2x::utils::trim_string(parts[1]);
@@ -96,8 +97,11 @@ public:
 }; // class BuildTools
 
 export BuildTools load_buildtools() {
-    // TODO: add more support for buildtools
-    BuildTools bt("xmake d2x-buildtools");
+    std::string bin = Config::buildtools();
+    if (bin.empty()) {
+        bin = "xmake d2x-buildtools";
+    }
+    BuildTools bt(bin);
     return bt;
 }
 

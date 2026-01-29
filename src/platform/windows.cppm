@@ -1,6 +1,7 @@
 module;
 
 #include <cstdio>
+#include <cstdlib>
 
 export module d2x.platform.windows;
 
@@ -40,10 +41,21 @@ namespace platform_impl {
         int status = std::system("powershell -Command \"irm https://d2learn.org/xlings-install.ps1.txt | iex\"");
         if (status == 0) {
             std::println("xlings 安装成功！");
+            // add xlings to PATH C:\Users\Public\.xlings_data\bin
+            std::string xlings_path = "C:\\Users\\Public\\.xlings_data\\bin";
+            char* path_env = std::getenv("PATH");
+            if (path_env) {
+                std::string new_path = std::string(path_env) + ";" + xlings_path;
+                _putenv_s("PATH", new_path.c_str());
+            }
             return true;
         }
         std::println("xlings 安装失败");
         return false;
+    }
+
+    export void set_env_variable(const std::string& key, const std::string& value) {
+        _putenv_s(key.c_str(), value.c_str());
     }
 } // namespace platform_impl
 } // namespace d2x
