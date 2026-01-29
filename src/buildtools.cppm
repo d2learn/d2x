@@ -84,7 +84,7 @@ public:
 
         auto lines = d2x::utils::split_string(output, '\n');
         for (const auto& line : lines) {
-            auto parts = d2x::utils::split_string(line, ':');
+            auto parts = d2x::utils::split_string(line, '@');
             if (parts.size() != 2) continue;
             auto target_name = d2x::utils::trim_string(parts[0]);
             auto files_str = d2x::utils::trim_string(parts[1]);
