@@ -8,7 +8,7 @@ task("d2x-buildtools")
         usage = "xmake d2x-buildtools [options]",
         description = "d2x buildtools plugin",
         options = {
-            {nil, "command", "v", nil, "xlings's command"},
+            {nil, "command", "v", nil, "d2x-buildtools's command"},
             {nil, "target", "v", nil, "the target name"}
         }
     }

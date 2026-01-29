@@ -31,8 +31,8 @@ namespace platform_impl {
     }
 
     export std::string get_home_dir() {
-        if (const char* home = ::_getenv("USERPROFILE")) return home;
-        if (const char* appdata = ::_getenv("APPDATA")) return appdata;
+        if (const char* home = std::getenv("USERPROFILE")) return home;
+        if (const char* appdata = std::getenv("APPDATA")) return appdata;
         return ".";
     }
 
@@ -43,7 +43,7 @@ namespace platform_impl {
             std::println("xlings 安装成功！");
             // add xlings to PATH C:\Users\Public\.xlings_data\bin
             std::string xlings_path = "C:\\Users\\Public\\.xlings_data\\bin";
-            char* path_env = ::_getenv("PATH");
+            char* path_env = std::getenv("PATH");
             if (path_env) {
                 std::string new_path = std::string(path_env) + ";" + xlings_path;
                 _putenv_s("PATH", new_path.c_str());

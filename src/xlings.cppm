@@ -15,18 +15,12 @@ namespace xlings {
 }
 
 bool ensure_xlings_installed() {
-// Check if xlings is installed
     if (!has_xlings()) {
-        std::print("xlings 未安装，是否现在安装? [Y/n]: ");
-        std::cout.flush();
-        std::string input;
-        if (!std::getline(std::cin, input)) return false;
-        if (!input.empty() && input[0] != 'y' && input[0] != 'Y') {
+        if (!d2x::utils::ask_yes_no("xlings 未安装，是否现在安装?", true)) {
             std::println("已取消安装");
             return false;
         }
 
-        std::println("正在安装 xlings...");
         if (!d2x::platform::xlings_install()) {
             std::println("xlings 安装失败");
             return false;
