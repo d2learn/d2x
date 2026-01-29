@@ -34,6 +34,9 @@ public:
 
         mAnimation_frame__++;
         render();
+        // TODO: fix output issue on wondows terminal 
+        // workaround by double render for first frame
+        if (mAnimation_frame__ == 1) render();
     }
 
 private:
