@@ -1,16 +1,9 @@
-module;
-
-#include <cstdlib>
-
 export module d2x.platform;
 
 import std;
 
-#if defined(_WIN32)
 import d2x.platform.windows;
-#else
 import d2x.platform.linux;
-#endif
 
 namespace d2x {
 namespace platform {
@@ -21,6 +14,7 @@ namespace platform {
     export using platform_impl::clear_console;
     export using platform_impl::get_home_dir;
     export using platform_impl::xlings_install;
+    export using platform_impl::set_env_variable;
 
     export [[nodiscard]] std::string get_rundir() {
         return gRundir;
@@ -48,11 +42,6 @@ namespace platform {
             // Locale initialization failed, fallback to English
             return "en";
         }
-    }
-
-    // setenv wrapper
-    export void set_env_variable(const std::string& key, const std::string& value) {
-        setenv(key.c_str(), value.c_str(), 1);
     }
 } // namespace platform
 } // namespace d2x

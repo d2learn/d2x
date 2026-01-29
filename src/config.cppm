@@ -166,9 +166,9 @@ public:
 
     static std::string get_config_path(Scope scope) {
         if (scope == Scope::Global) {
-            return std::filesystem::path(platform::get_home_dir()) / ".d2x.json";
+            return (std::filesystem::path(platform::get_home_dir()) / ".d2x.json").string();
         }
-        return std::filesystem::path(platform::get_rundir()) / ".d2x.json";
+        return (std::filesystem::path(platform::get_rundir()) / ".d2x.json").string();
     }
 
     static void backup_config(const std::string& path) {
@@ -302,7 +302,9 @@ public:
         new_cfg.lang = utils::ask_input("Language (zh/en/auto)", cfg.lang.empty() ? std::string{ConfigData::DEFAULT_LANG} : cfg.lang);
         new_cfg.ui_backend = utils::ask_input("UI Backend", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
         new_cfg.llm.api_key = utils::ask_input("LLM API Key", cfg.llm.api_key);
-        new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{llmapi::URL::DeepSeek} : cfg.llm.api_url);
+        // TODO: msvc cannot access llmapi::URL::DeepSeek?
+        //new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{llmapi::URL::DeepSeek} : cfg.llm.api_url);
+        new_cfg.llm.api_url = utils::ask_input("LLM API URL", cfg.llm.api_url.empty() ? std::string{"https://api.deepseek.com/v1"} : cfg.llm.api_url);
         new_cfg.llm.model = utils::ask_input("LLM Model", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
         new_cfg.llm.system_prompt = utils::ask_input("LLM System Prompt", cfg.llm.system_prompt);
 

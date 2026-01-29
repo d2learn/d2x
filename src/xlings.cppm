@@ -8,16 +8,14 @@ import d2x.utils;
 namespace d2x {
 namespace xlings {
 
-export [[nodiscard]] bool has_xlings() {
-    auto [status, _] = d2x::platform::run_command_capture("xlings");
-    return status == 0;
+[[nodiscard]] bool has_xlings() {
+    auto [status, output] = d2x::platform::run_command_capture("xlings");
+    auto clean_output = d2x::utils::strip_ansi(output);
+    return status == 0 && clean_output.find("xlings version") != std::string::npos;
 }
 
-export bool install(const std::string& pkgname) {
-
-    std::println("开始安装 -> {}", pkgname);
-
-    // Check if xlings is installed
+bool ensure_xlings_installed() {
+// Check if xlings is installed
     if (!has_xlings()) {
         std::print("xlings 未安装，是否现在安装? [Y/n]: ");
         std::cout.flush();
@@ -34,6 +32,14 @@ export bool install(const std::string& pkgname) {
             return false;
         }
     }
+    return true;
+}
+
+export bool install(const std::string& pkgname) {
+
+    std::println("开始安装 -> {}", pkgname);
+
+    ensure_xlings_installed();
 
     // Install the package
     std::string command = "xlings install d2x:" + pkgname;
@@ -49,6 +55,9 @@ export bool install(const std::string& pkgname) {
 }
 
 export void list(const std::string& query = "") {
+
+    ensure_xlings_installed();
+
     std::string command = "xim -s d2x:" + query;
     auto [status, output] = d2x::platform::run_command_capture(command);
 
