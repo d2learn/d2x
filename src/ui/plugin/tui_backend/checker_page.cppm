@@ -45,6 +45,10 @@ private:
         std::istringstream iss(text);
         std::string line;
         while (std::getline(iss, line)) {
+            // Strip Windows carriage return (\r)
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
             lines.push_back(line);
         }
         return lines;
