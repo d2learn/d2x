@@ -47,7 +47,7 @@ export bool install(const std::string& pkgname) {
     // Install the package
     std::string command = "xlings install d2x:" + pkgname;
     std::println("正在执行: {}", command);
-    int status = std::system(command.c_str());
+    int status = platform::exec(command.c_str());
 
     if (status == 0) {
         return true;
