@@ -88,7 +88,7 @@ export CommandProcessor create_processor() {
                 std::println("Opening book: {}", bookdir.string());
                 if (std::filesystem::exists(bookdir)) {
                     platform::run_command_capture("xlings install mdbook -y");
-                    std::system(("mdbook serve --open " + bookdir.string()).c_str());
+                    platform::exec(("mdbook serve --open " + bookdir.string()).c_str());
                 } else
                     std::println("Error: No book found");
                 return 0;
@@ -120,9 +120,9 @@ int new_project(int argc, char* argv[]) {
 
     std::string cmd = "xlings install d2x:project-template -y";
     std::println("加载项目模板...");
-    auto [status, output] = d2x::platform::run_command_capture(cmd);
+    int status = d2x::platform::exec(cmd);
     if (status != 0) {
-        std::println("项目模板安装失败: {}", output);
+        std::println("项目模板安装失败");
         return 1;
     }
 
