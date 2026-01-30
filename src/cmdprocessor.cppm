@@ -106,8 +106,12 @@ export CommandProcessor create_processor() {
 int new_project(int argc, char* argv[]) {
     std::string project_name = argc >= 3 ? argv[2] : "";
 
+    if (project_name.empty()) {
+        project_name = "d2x-project";
+    }
+
     // if exists project_name directory, error
-    if (!project_name.empty() && std::filesystem::exists(project_name)) {
+    if (std::filesystem::exists(project_name)) {
         std::println("目录 '{}' 已存在，无法创建项目", project_name);
         return 1;
     }
@@ -120,10 +124,6 @@ int new_project(int argc, char* argv[]) {
     if (status != 0) {
         std::println("项目模板安装失败: {}", output);
         return 1;
-    }
-
-    if (project_name.empty()) {
-        project_name = "d2x-project";
     }
 
     if (std::rename("project-template", project_name.c_str()) != 0) {
