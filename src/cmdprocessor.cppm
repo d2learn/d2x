@@ -131,6 +131,14 @@ int new_project(int argc, char* argv[]) {
         return 1;
     }
 
+    auto d2x_json_file = std::filesystem::path(project_name) / ".d2x.json";
+    if (std::filesystem::exists(d2x_json_file)) {
+        std::println("项目完整性检查 - ok");
+    } else {
+        std::println("项目创建失败: 缺少 .d2x.json 文件");
+        return 1;
+    }
+
     std::println("项目创建成功: {}", project_name);
     return 0;
 };
