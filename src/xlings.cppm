@@ -11,7 +11,10 @@ namespace xlings {
 [[nodiscard]] bool has_xlings() {
     auto [status, output] = d2x::platform::run_command_capture("xlings");
     auto clean_output = d2x::utils::strip_ansi(output);
-    return status == 0 && clean_output.find("xlings version") != std::string::npos;
+    return status == 0 && (
+        clean_output.find("xlings version") != std::string::npos ||
+        clean_output.find("xlings 版本") != std::string::npos
+    );
 }
 
 export bool ensure_xlings_installed() {
