@@ -14,7 +14,7 @@ namespace xlings {
     return status == 0 && clean_output.find("xlings version") != std::string::npos;
 }
 
-bool ensure_xlings_installed() {
+export bool ensure_xlings_installed() {
     if (!has_xlings()) {
         if (!d2x::utils::ask_yes_no("xlings 未安装，是否现在安装?", true)) {
             std::println("已取消安装");
