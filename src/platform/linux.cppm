@@ -3,7 +3,7 @@ module;
 #include <cstdio>
 #include <cstdlib>
 
-export module d2x.platform.linux;
+export module d2x.platform:linux;
 
 #if defined(__linux__)
 
@@ -11,6 +11,9 @@ import std;
 
 namespace d2x {
 namespace platform_impl {
+
+    export constexpr std::string_view XLINGS_BIN = "/home/xlings/.xlings_data/bin/xlings";
+
     export std::pair<int, std::string> run_command_capture(const std::string& cmd) {
         std::string full = cmd + " 2>&1"; // redirect stderr to stdout
         FILE* pipe = ::popen(full.c_str(), "r");

@@ -3,7 +3,7 @@ module;
 #include <cstdio>
 #include <cstdlib>
 
-export module d2x.platform.windows;
+export module d2x.platform:windows;
 
 #if defined(_WIN32)
 
@@ -11,6 +11,9 @@ import std;
 
 namespace d2x {
 namespace platform_impl {
+
+    export constexpr std::string_view XLINGS_BIN = "C:\\Users\\Public\\xlings\\.xlings_data\\bin\\xlings";
+
     export std::pair<int, std::string> run_command_capture(const std::string& cmd) {
         FILE* pipe = _popen(cmd.c_str(), "r");
         if (!pipe) {
@@ -41,8 +44,8 @@ namespace platform_impl {
         int status = std::system("powershell -Command \"irm https://d2learn.org/xlings-install.ps1.txt | iex\"");
         if (status == 0) {
             std::println("xlings 安装成功！");
-            // add xlings to PATH C:\Users\Public\.xlings_data\bin
-            std::string xlings_path = "C:\\Users\\Public\\.xlings_data\\bin";
+            // add xlings to PATH C:\Users\Public\xlings\.xlings_data\bin
+            std::string xlings_path = "C:\\Users\\Public\\xlings\\.xlings_data\\bin";
             char* path_env = std::getenv("PATH");
             if (path_env) {
                 std::string new_path = std::string(path_env) + ";" + xlings_path;

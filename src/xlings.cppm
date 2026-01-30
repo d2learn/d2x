@@ -9,6 +9,12 @@ namespace d2x {
 namespace xlings {
 
 [[nodiscard]] bool has_xlings() {
+
+    // check by XLINGS_BIN
+    if (std::filesystem::exists(platform::XLINGS_BIN)) {
+        return true;
+    }
+
     auto [status, output] = d2x::platform::run_command_capture("xlings");
     auto clean_output = d2x::utils::strip_ansi(output);
     return status == 0 && (

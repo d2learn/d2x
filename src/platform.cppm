@@ -2,13 +2,15 @@ export module d2x.platform;
 
 import std;
 
-import d2x.platform.windows;
-import d2x.platform.linux;
+export import :windows;
+export import :linux;
 
 namespace d2x {
 namespace platform {
 
     static std::string gRundir = std::filesystem::current_path().string();
+
+    export using platform_impl::XLINGS_BIN;
 
     export using platform_impl::run_command_capture;
     export using platform_impl::clear_console;
