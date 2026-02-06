@@ -25,8 +25,12 @@ public:
     ~BuildTools() {}
 
 public: // commands
+    auto init() const {
+        return platform::run_command_capture(bin + " init");
+    }
+
     auto list() const {
-        return platform::run_command_capture(bin + " list");;
+        return platform::run_command_capture(bin + " list");
     }
 
     auto build(const std::string& target) const {
@@ -102,6 +106,7 @@ export BuildTools load_buildtools() {
         bin = "xmake d2x-buildtools";
     }
     BuildTools bt(bin);
+    bt.init();
     return bt;
 }
 

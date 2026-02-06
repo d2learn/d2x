@@ -85,6 +85,8 @@ export CommandProcessor create_processor() {
         ).add("book", "open project's book",
             [](int, char**) {
                 auto bookdir = std::filesystem::path(d2x::platform::get_rundir()) / "book";
+                // if lang is en, append en dir to bookdir
+                if (Config::lang() == "en") bookdir /= "en";
                 std::println("Opening book: {}", bookdir.string());
                 if (std::filesystem::exists(bookdir)) {
                     platform::run_command_capture("xlings install mdbook -y");
