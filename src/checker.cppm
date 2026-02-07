@@ -54,6 +54,7 @@ export void run(const std::string& start_target = "") {
             built_targets += 1; // skip targets before the matched one
         }
         if (!found) {
+            built_targets = 0; // reset if not found
             log::warning("Target '{}' not found. Starting from beginning.", start_target);
         }
     }
