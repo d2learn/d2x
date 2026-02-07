@@ -94,7 +94,11 @@ export CommandProcessor create_processor() {
                 return 0;
             })
         .add("checker", "run checker for d2x project's exercises",
-            [](int, char**) { d2x::checker::run(); return 0; })
+            [](int argc, char** argv) { 
+                std::string target = argc >= 3 ? argv[2] : "";
+                d2x::checker::run(target); 
+                return 0; 
+            }, "d2x checker [target-name]")
         .add("config", "configure d2x (.d2x.json)",
             [](int, char**) { d2x::Config::run_interactive_config(); return 0; })
         .add("list", "list available d2x packages",
