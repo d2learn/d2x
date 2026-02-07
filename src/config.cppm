@@ -17,7 +17,7 @@ export struct EnvVars;
 export class Config;
 
 struct Info {
-    static constexpr std::string_view VERSION = "0.1.1";
+    static constexpr std::string_view VERSION = "0.1.2";
     static constexpr std::string_view REPO = "https://github.com/d2learn/d2x";
 };
 

@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.1.1)'
+        required: true
+        type: string
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Xlings
+        run: curl -fsSL https://d2learn.org/xlings-install.sh | bash
+
+      - name: install gcc 15.1 with Xlings
+        run: |
+          export PATH=/home/xlings/.xlings_data/bin:$PATH
+          xlings install gcc@15.1 -y
+
+      - name: Build with xmake
+        run: |
+          export PATH=/home/xlings/.xlings_data/bin:$PATH
+          xmake f -m release -y
+          xmake -j$(nproc)
+
+      - name: Create release package
+        run: |
+          mkdir -p d2x-${{ inputs.version }}-linux-x86_64
+          cp build/linux/x86_64/release/d2x d2x-${{ inputs.version }}-linux-x86_64/
+          tar -czf d2x-${{ inputs.version }}-linux-x86_64.tar.gz d2x-${{ inputs.version }}-linux-x86_64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2x-linux-x86_64
+          path: d2x-${{ inputs.version }}-linux-x86_64.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -y
+          xmake -j$env:NUMBER_OF_PROCESSORS
+
+      - name: Create release package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "d2x-${{ inputs.version }}-windows-x86_64" -Force
+          Copy-Item "build\windows\x64\release\d2x.exe" -Destination "d2x-${{ inputs.version }}-windows-x86_64\"
+          Compress-Archive -Path "d2x-${{ inputs.version }}-windows-x86_64" -DestinationPath "d2x-${{ inputs.version }}-windows-x86_64.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2x-windows-x86_64
+          path: d2x-${{ inputs.version }}-windows-x86_64.zip
+
+  create-release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Release v${{ inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/d2x-linux-x86_64/d2x-${{ inputs.version }}-linux-x86_64.tar.gz
+            artifacts/d2x-windows-x86_64/d2x-${{ inputs.version }}-windows-x86_64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
