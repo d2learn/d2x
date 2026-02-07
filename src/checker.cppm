@@ -41,10 +41,10 @@ export void run(const std::string& start_target = "") {
     }
 
     // 如果指定了起始target，找到第一个匹配的位置
-    int start_idx = 0;
+    std::size_t start_idx = 0;
     if (!start_target.empty()) {
         bool found = false;
-        for (int i = 0; i < targets.size(); ++i) {
+        for (std::size_t i = 0; i < targets.size(); ++i) {
             if (targets[i].find(start_target) != std::string::npos) {
                 start_idx = i;
                 found = true;
@@ -61,7 +61,7 @@ export void run(const std::string& start_target = "") {
 
     auto assistant = d2x::Assistant();
 
-    for (int idx = start_idx; idx < targets.size(); ++idx) {
+    for (std::size_t idx = start_idx; idx < targets.size(); ++idx) {
         const auto& target = targets[idx];
         //log::info("Checking target: {}", target);
         
