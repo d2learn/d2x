@@ -99,6 +99,8 @@ d2x book
 d2x checker
 ```
 
+注: 可以使用`d2x checker [target_name]`直接从指定target开始检测, 且`target_name`支持字符串匹配
+
 ## 项目案例
 
 | 项目 | 简介 | 备注 |

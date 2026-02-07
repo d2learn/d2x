@@ -26,7 +26,7 @@ std::pair<bool, std::string> run_with_error_handling(const std::string &target) 
     return std::make_pair(exit_code == 0, output);
 }
 
-export void run() {
+export void run(const std::string& start_target = "") {
 
     btools.load_targets();
 
@@ -40,9 +40,29 @@ export void run() {
         return;
     }
 
+    // 如果指定了起始target，找到第一个匹配的位置
+    std::size_t start_idx = 0;
+    if (!start_target.empty()) {
+        bool found = false;
+        for (std::size_t i = 0; i < targets.size(); ++i) {
+            if (targets[i].find(start_target) != std::string::npos) {
+                start_idx = i;
+                found = true;
+                log::info("Starting from target: {}", targets[i]);
+                break;
+            }
+            built_targets += 1; // skip targets before the matched one
+        }
+        if (!found) {
+            built_targets = 0; // reset if not found
+            log::warning("Target '{}' not found. Starting from beginning.", start_target);
+        }
+    }
+
     auto assistant = d2x::Assistant();
 
-    for (const auto& target : targets) {
+    for (std::size_t idx = start_idx; idx < targets.size(); ++idx) {
+        const auto& target = targets[idx];
         //log::info("Checking target: {}", target);
         
         bool build_success { false };
