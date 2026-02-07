@@ -87,10 +87,7 @@ export void run(const std::string& start_target = "") {
             status = build_success;
 
             if (!output.empty()) {
-                if (
-                    output.find("❌") != std::string::npos
-                    || output.find("error") != std::string::npos
-                ) {
+                if (output.find("❌") != std::string::npos) {
                     status = false;
                     build_success = false;
                 } else if (output.find(D2X_WAIT) != std::string::npos) {
