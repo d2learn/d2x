@@ -110,8 +110,8 @@ public:
 
     Assistant(const Assistant&) = delete;
     Assistant& operator=(const Assistant&) = delete;
-    Assistant(Assistant&&) noexcept = default;
-    Assistant& operator=(Assistant&&) noexcept = default;
+    Assistant(Assistant&&) noexcept = delete;
+    Assistant& operator=(Assistant&&) noexcept = delete;
 
     ~Assistant() {
         stop_current_request();

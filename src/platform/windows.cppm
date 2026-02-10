@@ -43,6 +43,17 @@ namespace platform_impl {
     export void set_env_variable(const std::string& key, const std::string& value) {
         _putenv_s(key.c_str(), value.c_str());
     }
+
+    // println implementation forwarding to std::println for Windows
+    export template<typename... Args>
+    void println(std::format_string<Args...> fmt, Args&&... args) {
+        std::println(fmt, std::forward<Args>(args)...);
+    }
+
+    export inline void println(const std::string& msg) {
+        std::println("{}", msg);
+    }
+
 } // namespace platform_impl
 } // namespace d2x
 
