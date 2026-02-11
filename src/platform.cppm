@@ -4,6 +4,7 @@ import std;
 
 export import :windows;
 export import :linux;
+export import :macos;
 
 namespace d2x {
 namespace platform {
@@ -17,6 +18,7 @@ namespace platform {
     export using platform_impl::get_home_dir;
     //export using platform_impl::xlings_install;
     export using platform_impl::set_env_variable;
+    export using platform_impl::println;
 
     export [[nodiscard]] std::string get_rundir() {
         return gRundir;

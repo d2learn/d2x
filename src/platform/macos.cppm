@@ -3,23 +3,24 @@ module;
 #include <cstdio>
 #include <cstdlib>
 
-export module d2x.platform:linux;
+export module d2x.platform:macos;
 
-#if defined(__linux__)
+#if defined(__APPLE__)
 
 import std;
 
 namespace d2x {
 namespace platform_impl {
 
-    export constexpr std::string_view XLINGS_BIN = "/home/xlings/.xlings_data/bin/xlings";
+    export constexpr std::string_view XLINGS_BIN = "/Users/xlings/.xlings_data/bin/xlings";
     export constexpr std::string_view XLINGS_INSTALL_CMD = "curl -fsSL https://d2learn.org/xlings-install.sh | bash";
 
     export std::pair<int, std::string> run_command_capture(const std::string& cmd) {
         std::string full = cmd + " 2>&1"; // redirect stderr to stdout
         FILE* pipe = ::popen(full.c_str(), "r");
         if (!pipe) {
-            std::println("Failed to open pipe for command: {}", cmd);
+            std::cout << std::format("Failed to open pipe for command: {}\n", cmd);
+            std::cout.flush();
             return {-1, std::string{}};
         }
         std::string output;
@@ -45,17 +46,19 @@ namespace platform_impl {
         ::setenv(key.c_str(), value.c_str(), 1);
     }
 
-    // println implementation forwarding to std::println for Linux
+    // println implementation using std::cout for macOS
     export template<typename... Args>
     void println(std::format_string<Args...> fmt, Args&&... args) {
-        std::println(fmt, std::forward<Args>(args)...);
+        std::cout << std::format(fmt, std::forward<Args>(args)...) << '\n';
+        std::cout.flush();
     }
 
     export inline void println(const std::string& msg) {
-        std::println("{}", msg);
+        std::cout << msg << '\n';
+        std::cout.flush();
     }
 
 } // namespace platform_impl
 }
 
-#endif // defined(__linux__)
+#endif // defined(__APPLE__)

@@ -1,6 +1,7 @@
 export module d2x.log;
 
 import std;
+import d2x.platform;
 
 template<typename... Args>
 void log_print(const std::string& level, const std::string& color, std::format_string<Args...> fmt, Args&&... args) {
@@ -8,12 +9,18 @@ void log_print(const std::string& level, const std::string& color, std::format_s
     auto time_t = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time_t);
 
-    std::println("{}{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}\t[D2X:{}] | {}", 
+    // First format the user message
+    std::string message = std::format(fmt, std::forward<Args>(args)...);
+    
+    // Then format the complete log line as a single string and print it
+    std::string log_line = std::format("{}{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}\t[D2X:{}] | {}", 
         color,
         tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
         tm.tm_hour, tm.tm_min, tm.tm_sec,
-        level, //"\033[0m",
-        std::format(fmt, std::forward<Args>(args)...));
+        level,
+        message);
+    
+    d2x::platform::println(log_line);
 }
 
 namespace d2x {
