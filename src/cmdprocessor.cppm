@@ -1,6 +1,7 @@
 export module d2x.cmdprocessor;
 
 import std;
+import mcpplibs.cmdline;
 
 import d2x.log;
 import d2x.platform;
@@ -10,131 +11,44 @@ import d2x.xlings;
 
 namespace d2x::cmdprocessor {
 
-struct CommandInfo {
-    std::string name;
-    std::string description;
-    std::string usage;
-    std::function<int(int argc, char* argv[])> func;
-};
+using namespace mcpplibs;
 
-class CommandProcessor {
-public:
-    CommandProcessor& add(std::string name, std::string description,
-                          std::function<int(int argc, char* argv[])> func,
-                          std::string usage = "") {
-        if (usage.empty()) usage = std::format("d2x {}", name);
-        commands_.push_back({std::move(name), std::move(description),
-                            std::move(usage), std::move(func)});
-        return *this;
-    }
-
-    int run(int argc, char* argv[]) {
-        if (argc <= 1) return print_help();
-
-        std::string cmd = argv[1];
-        if (
-            cmd == "help" || cmd == "--help"
-            || cmd == "-h" || cmd == "--version"
-        ) return print_help();
-
-        for (const auto& c : commands_) {
-            if (c.name == cmd) return c.func(argc, argv);
-        }
-
-        log::error("Unknown command: {}", cmd);
-        std::println("Use 'd2x help' for usage information");
-        return 1;
-    }
-
-    int print_help() const {
-        std::println("d2x version: {}\n", d2x::Info::VERSION);
-        std::println("Usage: $ d2x [command] [target] [options]\n");
-        std::println("Commands:");
-        for (const auto& c : commands_)
-            std::println("\t {:10}\t{}", c.name, c.description);
-        std::println("\nOptions:");
-        std::println("\t --lang <language>          \t set language (zh, en)");
-        std::println("\t --log-level <level>        \t set log level (info, debug)");
-        std::println("\t --ui <backend>             \t set UI backend (print, tui)");
-        std::println("\t --llm-prompt <prompt>      \t set LLM system prompt");
-        std::println("\t --llm-api-key <key>        \t set LLM API key");
-        std::println("\t --llm-api-url <url>        \t set LLM API URL");
-        return 0;
-    }
-
-private:
-    std::vector<CommandInfo> commands_;
-};
-
-int new_project(int argc, char* argv[]);
-
-export CommandProcessor create_processor() {
-    return CommandProcessor{}
-        .add(
-            "new",
-            "create new d2x project from template",
-            new_project,
-            "d2x new <project-name>"
-        )
-        .add("install", "install d2x package via xlings",
-            [](int argc, char* argv[]) {
-                if (argc < 3) { std::println("Usage: d2x install <package>"); return 1; }
-                d2x::xlings::install(argv[2]); return 0;
-            },
-            "d2x install <package-name>"
-        ).add("book", "open project's book",
-            [](int, char**) {
-                auto bookdir = std::filesystem::path(d2x::platform::get_rundir()) / "book";
-                // if lang is en, append en dir to bookdir
-                if (Config::lang() == "en") bookdir /= "en";
-                std::println("Opening book: {}", bookdir.string());
-                if (std::filesystem::exists(bookdir)) {
-                    platform::run_command_capture("xlings install mdbook -y");
-                    platform::exec(("mdbook serve --open " + bookdir.string()).c_str());
-                } else
-                    std::println("Error: No book found");
-                return 0;
-            })
-        .add("checker", "run checker for d2x project's exercises",
-            [](int argc, char** argv) { 
-                std::string target = argc >= 3 ? argv[2] : "";
-                d2x::checker::run(target); 
-                return 0; 
-            }, "d2x checker [target-name]")
-        .add("config", "configure d2x (.d2x.json)",
-            [](int, char**) { d2x::Config::run_interactive_config(); return 0; })
-        .add("list", "list available d2x packages",
-            [](int argc, char* argv[]) {
-                d2x::xlings::list(argc >= 3 ? argv[2] : ""); return 0;
-            }, "d2x list [query]");
+void apply_global_options(const cmdline::ParsedArgs& args) {
+    if (auto v = args.value("lang"))
+        platform::set_env_variable(std::string(EnvVars::D2X_LANG), *v);
+    if (auto v = args.value("log-level"))
+        platform::set_env_variable("D2X_LOG_LEVEL", *v);
+    if (auto v = args.value("ui"))
+        platform::set_env_variable(std::string(EnvVars::D2X_UI_BACKEND), *v);
+    if (auto v = args.value("llm-prompt"))
+        platform::set_env_variable(std::string(EnvVars::D2X_LLM_SYSTEM_PROMPT), *v);
+    if (auto v = args.value("llm-api-key"))
+        platform::set_env_variable(std::string(EnvVars::D2X_LLM_API_KEY), *v);
+    if (auto v = args.value("llm-api-url"))
+        platform::set_env_variable(std::string(EnvVars::D2X_LLM_API_URL), *v);
 }
 
-int new_project(int argc, char* argv[]) {
-    std::string project_name = argc >= 3 ? argv[2] : "";
+void new_project(const cmdline::ParsedArgs& args) {
+    std::string project_name = args.positional_or(0, "d2x-project");
 
-    if (project_name.empty()) {
-        project_name = "d2x-project";
-    }
-
-    // if exists project_name directory, error
     if (std::filesystem::exists(project_name)) {
         std::println("目录 '{}' 已存在，无法创建项目", project_name);
-        return 1;
+        return;
     }
 
-    d2x::xlings::ensure_xlings_installed();
+    xlings::ensure_xlings_installed();
 
     std::string cmd = "xlings install d2x:project-template -y";
     std::println("加载项目模板...");
-    int status = d2x::platform::exec(cmd);
+    int status = platform::exec(cmd);
     if (status != 0) {
         std::println("项目模板安装失败");
-        return 1;
+        return;
     }
 
     if (std::rename("project-template", project_name.c_str()) != 0) {
         std::println("无法重命名项目目录");
-        return 1;
+        return;
     }
 
     auto d2x_json_file = std::filesystem::path(project_name) / ".d2x.json";
@@ -142,11 +56,71 @@ int new_project(int argc, char* argv[]) {
         std::println("项目完整性检查 - ok");
     } else {
         std::println("项目创建失败: 缺少 .d2x.json 文件");
-        return 1;
+        return;
     }
 
     std::println("项目创建成功: {}", project_name);
-    return 0;
-};
+}
+
+export int run(int argc, char* argv[]) {
+    auto app = cmdline::App("d2x")
+        .version(std::string(Info::VERSION))
+        .description("d2x command line tool")
+        .option("lang").takes_value().global().help("set language (zh, en)")
+        .option("log-level").takes_value().global().help("set log level (info, debug)")
+        .option("ui").takes_value().global().help("set UI backend (print, tui)")
+        .option("llm-prompt").takes_value().global().help("set LLM system prompt")
+        .option("llm-api-key").takes_value().global().help("set LLM API key")
+        .option("llm-api-url").takes_value().global().help("set LLM API URL")
+        .subcommand("new")
+            .description("create new d2x project from template")
+            .arg("project-name").help("project name")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                new_project(a);
+            })
+        .subcommand("install")
+            .description("install d2x package via xlings")
+            .arg("package").required().help("package name")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                xlings::install(std::string(a.positional(0)));
+            })
+        .subcommand("book")
+            .description("open project's book")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                auto bookdir = std::filesystem::path(platform::get_rundir()) / "book";
+                if (Config::lang() == "en") bookdir /= "en";
+                std::println("Opening book: {}", bookdir.string());
+                if (std::filesystem::exists(bookdir)) {
+                    platform::run_command_capture("xlings install mdbook -y");
+                    platform::exec(("mdbook serve --open " + bookdir.string()).c_str());
+                } else
+                    std::println("Error: No book found");
+            })
+        .subcommand("checker")
+            .description("run checker for d2x project's exercises")
+            .arg("target").help("target name")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                checker::run(std::string(a.positional_or(0, "")));
+            })
+        .subcommand("config")
+            .description("configure d2x (.d2x.json)")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                Config::run_interactive_config();
+            })
+        .subcommand("list")
+            .description("list available d2x packages")
+            .arg("query").help("search query")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                xlings::list(std::string(a.positional_or(0, "")));
+            });
+
+    return app.run(argc, argv);
+}
 
 } // namespace d2x::cmdprocessor
