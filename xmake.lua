@@ -19,15 +19,14 @@ target("d2x")
     
     -- platform specific settings
     if is_plat("macosx") then
-        -- macOS: use dynamic linking to avoid ABI conflicts with dependencies
-        -- Dependencies (ftxui, llmapi) are built with system libc++
-        -- Static linking causes memory allocator conflicts
-        add_linkdirs("/opt/homebrew/Cellar/llvm@20/20.1.8/lib/c++")
-        add_ldflags("-lc++experimental", {force = true})
-        -- Add rpath to find homebrew libc++ at runtime
-        add_ldflags("-Wl,-rpath,/opt/homebrew/opt/llvm@20/lib/c++", {force = true})
-    else
-        -- Linux/Windows: static link C++ runtime
+        local llvm_prefix = os.getenv("LLVM_PREFIX") or "/opt/homebrew/opt/llvm@20"
+        local libcxx_dir = llvm_prefix .. "/lib/c++"
+        -- Static link libc++ so binary has no runtime dependency on LLVM toolchain
+        add_ldflags("-nostdlib++", {force = true})
+        add_ldflags(libcxx_dir .. "/libc++.a", {force = true})
+        add_ldflags(libcxx_dir .. "/libc++experimental.a", {force = true})
+        add_ldflags("-lc++abi", {force = true})
+    elseif is_plat("linux") then
         add_ldflags("-static-libstdc++", "-static-libgcc", {force = true})
     end
 
