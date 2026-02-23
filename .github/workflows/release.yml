@@ -78,15 +78,15 @@ jobs:
 
       - name: Create release package
         run: |
-          mkdir -p d2x-${{ inputs.version }}-macos-arm64
-          cp build/macosx/arm64/release/d2x d2x-${{ inputs.version }}-macos-arm64/
-          tar -czf d2x-${{ inputs.version }}-macos-arm64.tar.gz d2x-${{ inputs.version }}-macos-arm64
+          mkdir -p d2x-${{ inputs.version }}-macosx-arm64
+          cp build/macosx/arm64/release/d2x d2x-${{ inputs.version }}-macosx-arm64/
+          tar -czf d2x-${{ inputs.version }}-macosx-arm64.tar.gz d2x-${{ inputs.version }}-macosx-arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: d2x-macos-arm64
-          path: d2x-${{ inputs.version }}-macos-arm64.tar.gz
+          name: d2x-macosx-arm64
+          path: d2x-${{ inputs.version }}-macosx-arm64.tar.gz
 
   build-windows:
     runs-on: windows-latest
@@ -132,12 +132,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ inputs.version }}
-          name: Release v${{ inputs.version }}
+          name: ${{ inputs.version }}
           draft: false
           prerelease: false
           files: |
             artifacts/d2x-linux-x86_64/d2x-${{ inputs.version }}-linux-x86_64.tar.gz
-            artifacts/d2x-macos-arm64/d2x-${{ inputs.version }}-macos-arm64.tar.gz
+            artifacts/d2x-macosx-arm64/d2x-${{ inputs.version }}-macosx-arm64.tar.gz
             artifacts/d2x-windows-x86_64/d2x-${{ inputs.version }}-windows-x86_64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
