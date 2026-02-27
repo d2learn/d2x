@@ -30,11 +30,6 @@ jobs:
           xlings --version
           xmake --version
 
-      - name: Install gcc 15.1 with Xlings
-        run: |
-          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
-          xlings install gcc@15.1 -y
-
       - name: Build with xmake
         run: |
           export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
@@ -47,8 +42,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install LLVM 20
-        run: brew install llvm@20
+      - name: Install system deps
+        run: brew install llvm@20 xmake
 
       - name: Install Xlings (quick install)
         run: |
@@ -60,13 +55,13 @@ jobs:
 
       - name: Verify Xlings and xmake
         run: |
-          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
+          export PATH="/opt/homebrew/bin:$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xlings --version
           xmake --version
 
       - name: Build with xmake (LLVM 20 toolchain)
         run: |
-          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
+          export PATH="/opt/homebrew/bin:$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           export PATH="/opt/homebrew/opt/llvm@20/bin:$PATH"
           export LLVM_PREFIX="/opt/homebrew/opt/llvm@20"
           xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
