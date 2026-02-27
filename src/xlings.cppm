@@ -10,9 +10,16 @@ namespace xlings {
 
 [[nodiscard]] bool has_xlings() {
 
-    // check by XLINGS_BIN
-    if (std::filesystem::exists(platform::XLINGS_BIN)) {
-        return true;
+    // check by known install paths
+    const std::array<std::filesystem::path, 3> candidates {
+        std::filesystem::path(platform::XLINGS_BIN),
+        std::filesystem::path(platform::get_home_dir()) / ".xlings/bin/xlings",
+        std::filesystem::path(platform::get_home_dir()) / ".xlings_data/bin/xlings"
+    };
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::exists(candidate)) {
+            return true;
+        }
     }
 
     auto [status, output] = d2x::platform::run_command_capture("xlings");

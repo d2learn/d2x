@@ -20,22 +20,23 @@ jobs:
         run: |
           export XLINGS_NON_INTERACTIVE=1
           curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "$HOME/.xlings/bin" >> "$GITHUB_PATH"
           echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
 
       - name: Verify Xlings and xmake
         run: |
-          export PATH="$HOME/.xlings_data/bin:$PATH"
+          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xlings --version
           xmake --version
 
       - name: Install gcc 15.1 with Xlings
         run: |
-          export PATH="$HOME/.xlings_data/bin:$PATH"
+          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xlings install gcc@15.1 -y
 
       - name: Build with xmake
         run: |
-          export PATH="$HOME/.xlings_data/bin:$PATH"
+          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xmake f -m release -y
           xmake -j"$(nproc)"
 
@@ -52,17 +53,18 @@ jobs:
         run: |
           export XLINGS_NON_INTERACTIVE=1
           curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "$HOME/.xlings/bin" >> "$GITHUB_PATH"
           echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
 
       - name: Verify Xlings and xmake
         run: |
-          export PATH="$HOME/.xlings_data/bin:$PATH"
+          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xlings --version
           xmake --version
 
       - name: Build with xmake (LLVM 20 toolchain)
         run: |
-          export PATH="$HOME/.xlings_data/bin:$PATH"
+          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           export PATH="/opt/homebrew/opt/llvm@20/bin:$PATH"
           export LLVM_PREFIX="/opt/homebrew/opt/llvm@20"
           xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
