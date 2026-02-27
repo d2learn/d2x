@@ -19,7 +19,8 @@ jobs:
       - name: Install Xlings (quick install)
         run: |
           export XLINGS_NON_INTERACTIVE=1
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
           echo "$HOME/.xlings/bin" >> "$GITHUB_PATH"
           echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
 
@@ -52,7 +53,8 @@ jobs:
       - name: Install Xlings (quick install)
         run: |
           export XLINGS_NON_INTERACTIVE=1
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
           echo "$HOME/.xlings/bin" >> "$GITHUB_PATH"
           echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
 
