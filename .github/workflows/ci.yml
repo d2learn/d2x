@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Xlings
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Install gcc 15.1 with Xlings
+        run: |
+          xlings install gcc@15.1 -y
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -y
+          xmake -j"$(nproc)"
+
+      - name: Test d2x
+        run: |
+          build/linux/x86_64/release/d2x --version
+          build/linux/x86_64/release/d2x install d2mcpp -y
+          cd d2mcpp
+          ../build/linux/x86_64/release/d2x --version
+
+  build-and-test-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Install Xlings
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Install llvm with Xlings
+        run: |
+          xlings install llvm -y
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -y
+          xmake -j"$(sysctl -n hw.ncpu)"
+
+      - name: Test d2x
+        run: |
+          build/macosx/arm64/release/d2x --version
+          build/macosx/arm64/release/d2x install d2mcpp -y
+          cd d2mcpp
+          ../build/macosx/arm64/release/d2x --version
+
+  build-and-test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -y
+          xmake -j$env:NUMBER_OF_PROCESSORS
+
+      - name: Test d2x
+        run: |
+          build/windows/x64/release/d2x.exe --version
+          build/windows/x64/release/d2x.exe install d2mcpp -y
+          cd d2mcpp
+          ../build/windows/x64/release/d2x.exe --version

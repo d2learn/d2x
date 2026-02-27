@@ -26,7 +26,11 @@ jobs:
           sudo apt-get install -y build-essential
 
       - name: Install Xlings
-        run: curl -fsSL https://d2learn.org/xlings-install.sh | bash
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run:
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> $GITHUB_ENV
 
       - name: install gcc 15.1 with Xlings
         run: |
@@ -57,14 +61,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install system deps
-        run: brew install xmake llvm@20
+      - name: Install Xlings
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run:
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Build with xmake (LLVM 20 toolchain)
+      - name: Install system deps
+        run:
+          brew install xmake llvm@20
+          xlings install llvm@20 -y
+
+      # TODO: remove brew llvm, and use xlings's llvm
+      - name: Build with xmake
         run: |
-          export PATH=/opt/homebrew/opt/llvm@20/bin:$PATH
-          xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
-          xmake -j$(sysctl -n hw.ncpu)
+          xmake -vv -y
 
       - name: Verify no LLVM runtime dependency
         run: |
