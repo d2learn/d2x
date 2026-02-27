@@ -42,7 +42,7 @@ jobs:
       - name: Test d2x
         run: |
           build/linux/x86_64/release/d2x --version
-          build/linux/x86_64/release/d2x install d2mcpp -y
+          build/linux/x86_64/release/d2x install d2mcpp
           cd d2mcpp
           ../build/linux/x86_64/release/d2x --version
 
@@ -76,7 +76,7 @@ jobs:
       - name: Test d2x
         run: |
           build/macosx/arm64/release/d2x --version
-          build/macosx/arm64/release/d2x install d2mcpp -y
+          build/macosx/arm64/release/d2x install d2mcpp
           cd d2mcpp
           ../build/macosx/arm64/release/d2x --version
 
@@ -99,6 +99,6 @@ jobs:
       - name: Test d2x
         run: |
           build/windows/x64/release/d2x.exe --version
-          build/windows/x64/release/d2x.exe install d2mcpp -y
+          build/windows/x64/release/d2x.exe install d2mcpp
           cd d2mcpp
           ../build/windows/x64/release/d2x.exe --version
