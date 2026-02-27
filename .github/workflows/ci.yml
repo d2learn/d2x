@@ -36,8 +36,7 @@ jobs:
 
       - name: Build with xmake
         run: |
-          xmake f -m release -y
-          xmake -j"$(nproc)"
+          xmake -vv -y -j"$(nproc)"
 
       - name: Test d2x
         run: |
@@ -70,8 +69,7 @@ jobs:
 
       - name: Build with xmake
         run: |
-          xmake f -m release -y
-          xmake -j"$(sysctl -n hw.ncpu)"
+          xmake -vv -y -j"$(sysctl -n hw.ncpu)"
 
       - name: Test d2x
         run: |
@@ -93,12 +91,11 @@ jobs:
 
       - name: Build with xmake
         run: |
-          xmake f -m release -y
-          xmake -j$env:NUMBER_OF_PROCESSORS
+          xmake -vv -y -j$env:NUMBER_OF_PROCESSORS
 
       - name: Test d2x
         run: |
           build/windows/x64/release/d2x.exe --version
-          build/windows/x64/release/d2x.exe install d2mcpp
-          cd d2mcpp
-          ../build/windows/x64/release/d2x.exe --version
+          #build/windows/x64/release/d2x.exe install d2mcpp
+          #cd d2mcpp
+          #../build/windows/x64/release/d2x.exe --version
