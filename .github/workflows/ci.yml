@@ -171,6 +171,28 @@ jobs:
             esac
           done < <(otool -L "${BIN_DST}" | awk 'NR>1 {print $1}')
 
+          for dylib in "${LIBS_DIR}"/*.dylib; do
+            [ -e "$dylib" ] || continue
+            while IFS= read -r dep; do
+              case "$dep" in
+                "${LLVM_LIBCXX_DIR}"/libc++*.dylib|"${LLVM_LIBCXX_DIR}"/libunwind*.dylib|"${LLVM_LIBCXX_DIR}"/libc++abi*.dylib)
+                  dylib_name="$(basename "$dep")"
+                  cp -L "$dep" "${LIBS_DIR}/${dylib_name}"
+                  install_name_tool -change "$dep" "@rpath/${dylib_name}" "$dylib"
+                  copied=1
+                  ;;
+                @rpath/libc++*.dylib|@rpath/libunwind*.dylib|@rpath/libc++abi*.dylib)
+                  dylib_name="$(basename "$dep")"
+                  dylib_src="${LLVM_LIBCXX_DIR}/${dylib_name}"
+                  if [ -f "${dylib_src}" ]; then
+                    cp -L "${dylib_src}" "${LIBS_DIR}/${dylib_name}"
+                    copied=1
+                  fi
+                  ;;
+              esac
+            done < <(otool -L "$dylib" | awk 'NR>1 {print $1}')
+          done
+
           if [ "$copied" -ne 1 ]; then
             echo "ERROR: no LLVM libc++ runtime dylibs were collected into ${LIBS_DIR}"
             exit 1
