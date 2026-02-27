@@ -67,3 +67,73 @@ jobs:
           export LLVM_PREFIX="/opt/homebrew/opt/llvm@20"
           xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
           xmake -j"$(sysctl -n hw.ncpu)"
+
+      - name: Verify packaged binary with relative rpath
+        run: |
+          PKG_DIR="${RUNNER_TEMP}/d2x-macos-ci"
+          BIN_SRC="build/macosx/arm64/release/d2x"
+          BIN_DST="${PKG_DIR}/d2x"
+          LIBS_DIR="${PKG_DIR}/libs"
+          LLVM_PREFIX="${LLVM_PREFIX:-/opt/homebrew/opt/llvm@20}"
+          LLVM_LIBCXX_DIR="${LLVM_PREFIX}/lib/c++"
+
+          mkdir -p "${LIBS_DIR}"
+          cp "${BIN_SRC}" "${BIN_DST}"
+
+          copied=0
+          while IFS= read -r dep; do
+            case "$dep" in
+              "${LLVM_LIBCXX_DIR}"/libc++*.dylib|"${LLVM_LIBCXX_DIR}"/libunwind*.dylib)
+                dylib_name="$(basename "$dep")"
+                cp -L "$dep" "${LIBS_DIR}/${dylib_name}"
+                install_name_tool -change "$dep" "@rpath/${dylib_name}" "${BIN_DST}"
+                copied=1
+                ;;
+              @rpath/libc++*.dylib|@rpath/libunwind*.dylib)
+                dylib_name="$(basename "$dep")"
+                dylib_src="${LLVM_LIBCXX_DIR}/${dylib_name}"
+                if [ -f "${dylib_src}" ]; then
+                  cp -L "${dylib_src}" "${LIBS_DIR}/${dylib_name}"
+                  copied=1
+                fi
+                ;;
+            esac
+          done < <(otool -L "${BIN_DST}" | awk 'NR>1 {print $1}')
+
+          if [ "$copied" -ne 1 ]; then
+            echo "ERROR: no LLVM libc++ runtime dylibs were collected into ${LIBS_DIR}"
+            exit 1
+          fi
+
+          if otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "${LLVM_LIBCXX_DIR}"; then
+            install_name_tool -delete_rpath "${LLVM_LIBCXX_DIR}" "${BIN_DST}" || {
+              echo "ERROR: failed to remove absolute rpath ${LLVM_LIBCXX_DIR}"
+              exit 1
+            }
+          fi
+
+          if ! otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "@loader_path/libs"; then
+            if ! install_name_tool -add_rpath "@loader_path/libs" "${BIN_DST}"; then
+              echo "ERROR: relative rpath is not supported or failed to apply. Please check install_name_tool compatibility."
+              exit 1
+            fi
+          fi
+
+          if ! otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "@loader_path/libs"; then
+            echo "ERROR: @loader_path/libs rpath was not found after patch"
+            exit 1
+          fi
+
+          if [ -z "$(ls -A "${LIBS_DIR}")" ]; then
+            echo "ERROR: libs directory is empty after collection"
+            exit 1
+          fi
+
+          echo "Runtime link info:"
+          otool -L "${BIN_DST}"
+          ls -la "${LIBS_DIR}"
+
+          (
+            cd "${PKG_DIR}"
+            DYLD_LIBRARY_PATH="" ./d2x --version
+          )
