@@ -23,10 +23,22 @@ jobs:
       - name: Install Xlings (quick install)
         run: |
           export XLINGS_NON_INTERACTIVE=1
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
+          for attempt in 1 2 3; do
+            if curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
+               curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash || \
+               curl -fsSL https://d2learn.org/xlings-install.sh | bash; then
+              echo "xlings installed successfully"
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "ERROR: failed to install xlings after 3 attempts"
+              exit 1
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 10s..."
+            sleep 10
+          done
           echo "XLINGS_BIN_DIR=$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+          echo "PATH=$PATH:$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
 
       - name: Verify Xlings and xmake
         run: |
@@ -75,10 +87,22 @@ jobs:
       - name: Install Xlings (quick install)
         run: |
           export XLINGS_NON_INTERACTIVE=1
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
+          for attempt in 1 2 3; do
+            if curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
+               curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash || \
+               curl -fsSL https://d2learn.org/xlings-install.sh | bash; then
+              echo "xlings installed successfully"
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "ERROR: failed to install xlings after 3 attempts"
+              exit 1
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 10s..."
+            sleep 10
+          done
           echo "XLINGS_BIN_DIR=$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+          echo "PATH=$PATH:$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
 
       - name: Verify Xlings and xmake
         run: |
