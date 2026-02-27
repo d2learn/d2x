@@ -34,6 +34,20 @@ jobs:
           xlings --version
           xmake --version
 
+      - name: install gcc 15.1 with Xlings
+        run: |
+          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
+          for attempt in 1 2 3; do
+            if xlings install gcc@15.1 -y; then
+              echo "gcc@15.1 installed successfully"
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 10s..."
+            sleep 10
+          done
+          echo "ERROR: failed to install gcc@15.1 after 3 attempts"
+          exit 1
+
       - name: Build with xmake
         run: |
           export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
