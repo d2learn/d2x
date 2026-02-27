@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Xlings (quick install)
+        run: |
+          export XLINGS_NON_INTERACTIVE=1
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Xlings and xmake
+        run: |
+          export PATH="$HOME/.xlings_data/bin:$PATH"
+          xlings --version
+          xmake --version
+
+      - name: Install gcc 15.1 with Xlings
+        run: |
+          export PATH="$HOME/.xlings_data/bin:$PATH"
+          xlings install gcc@15.1 -y
+
+      - name: Build with xmake
+        run: |
+          export PATH="$HOME/.xlings_data/bin:$PATH"
+          xmake f -m release -y
+          xmake -j"$(nproc)"
+
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install LLVM 20
+        run: brew install llvm@20
+
+      - name: Install Xlings (quick install)
+        run: |
+          export XLINGS_NON_INTERACTIVE=1
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Xlings and xmake
+        run: |
+          export PATH="$HOME/.xlings_data/bin:$PATH"
+          xlings --version
+          xmake --version
+
+      - name: Build with xmake (LLVM 20 toolchain)
+        run: |
+          export PATH="$HOME/.xlings_data/bin:$PATH"
+          export PATH="/opt/homebrew/opt/llvm@20/bin:$PATH"
+          export LLVM_PREFIX="/opt/homebrew/opt/llvm@20"
+          xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
+          xmake -j"$(sysctl -n hw.ncpu)"
