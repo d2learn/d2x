@@ -33,6 +33,26 @@ jobs:
             echo "Attempt ${attempt} failed. Retrying in 10s..."
             sleep 10
           done
+          mkdir -p "$HOME/.xlings/subos/current/bin"
+          if [ ! -x "$HOME/.xlings/subos/current/bin/xlings" ]; then
+            for candidate in "$HOME/.xlings/bin/xlings" "$HOME/.xlings_data/bin/xlings"; do
+              if [ -x "$candidate" ]; then
+                ln -sf "$candidate" "$HOME/.xlings/subos/current/bin/xlings"
+                break
+              fi
+            done
+          fi
+          if [ ! -x "$HOME/.xlings/subos/current/bin/xmake" ]; then
+            for candidate in "$HOME/.xlings/bin/xmake" "$HOME/.xlings_data/bin/xmake"; do
+              if [ -x "$candidate" ]; then
+                ln -sf "$candidate" "$HOME/.xlings/subos/current/bin/xmake"
+                break
+              fi
+            done
+          fi
+          if [ ! -x "$HOME/.xlings/subos/current/bin/xmake" ] && command -v xmake >/dev/null 2>&1; then
+            ln -sf "$(command -v xmake)" "$HOME/.xlings/subos/current/bin/xmake"
+          fi
           echo "XLINGS_BIN_DIR=$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
           echo "PATH=$PATH:$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
 
@@ -85,6 +105,26 @@ jobs:
             echo "Attempt ${attempt} failed. Retrying in 10s..."
             sleep 10
           done
+          mkdir -p "$HOME/.xlings/subos/current/bin"
+          if [ ! -x "$HOME/.xlings/subos/current/bin/xlings" ]; then
+            for candidate in "$HOME/.xlings/bin/xlings" "$HOME/.xlings_data/bin/xlings"; do
+              if [ -x "$candidate" ]; then
+                ln -sf "$candidate" "$HOME/.xlings/subos/current/bin/xlings"
+                break
+              fi
+            done
+          fi
+          if [ ! -x "$HOME/.xlings/subos/current/bin/xmake" ]; then
+            for candidate in "$HOME/.xlings/bin/xmake" "$HOME/.xlings_data/bin/xmake"; do
+              if [ -x "$candidate" ]; then
+                ln -sf "$candidate" "$HOME/.xlings/subos/current/bin/xmake"
+                break
+              fi
+            done
+          fi
+          if [ ! -x "$HOME/.xlings/subos/current/bin/xmake" ] && command -v xmake >/dev/null 2>&1; then
+            ln -sf "$(command -v xmake)" "$HOME/.xlings/subos/current/bin/xmake"
+          fi
           echo "XLINGS_BIN_DIR=$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
           echo "PATH=$PATH:$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
 
