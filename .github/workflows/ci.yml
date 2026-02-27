@@ -67,8 +67,16 @@ jobs:
         run: |
           xlings install llvm -y
 
+      - name: Verify LLVM toolchain from Xlings
+        run: |
+          which clang
+          which clang++
+          clang --version
+          clang++ --version
+
       - name: Build with xmake
         run: |
+          xmake f -y -m release --toolchain=llvm --cc=clang --cxx=clang++
           xmake -vv -y -j"$(sysctl -n hw.ncpu)"
 
       - name: Test d2x
