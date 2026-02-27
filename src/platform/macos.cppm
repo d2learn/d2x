@@ -13,7 +13,7 @@ namespace d2x {
 namespace platform_impl {
 
     export constexpr std::string_view XLINGS_BIN = "/Users/xlings/.xlings_data/bin/xlings";
-    export constexpr std::string_view XLINGS_INSTALL_CMD = "curl -fsSL https://d2learn.org/xlings-install.sh | bash";
+    export constexpr std::string_view XLINGS_INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash";
 
     export std::pair<int, std::string> run_command_capture(const std::string& cmd) {
         std::string full = cmd + " 2>&1"; // redirect stderr to stdout
