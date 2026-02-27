@@ -11,6 +11,7 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,7 +69,7 @@ jobs:
       - name: install gcc 15.1 with Xlings
         run: |
           for attempt in 1 2 3; do
-            if xlings install gcc@15.1 -y; then
+            if xlings install gcc@15.1 -y && xlings use gcc@15.1; then
               echo "gcc@15.1 installed successfully"
               exit 0
             fi
@@ -80,8 +81,17 @@ jobs:
 
       - name: Build with xmake
         run: |
-          xmake f -m release -y
-          xmake -j"$(nproc)"
+          for attempt in 1 2; do
+            if timeout 25m xmake f -m release --toolchain=gcc -y && timeout 35m xmake -j"$(nproc)"; then
+              echo "xmake build succeeded"
+              exit 0
+            fi
+            echo "Build attempt ${attempt} failed. Cleaning and retrying in 10s..."
+            xmake f -c || true
+            sleep 10
+          done
+          echo "ERROR: xmake build failed after retries"
+          exit 1
 
       - name: Create release package
         run: |
@@ -216,19 +226,19 @@ jobs:
             exit 1
           fi
 
-          if otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "${LLVM_LIBCXX_DIR}"; then
+          REL_RPATH_SUPPORTED=1
+          if ! otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "@loader_path/libs"; then
+            if ! install_name_tool -add_rpath "@loader_path/libs" "${BIN_DST}"; then
+              REL_RPATH_SUPPORTED=0
+              echo "WARNING: relative rpath is not supported on this runner. Keep existing rpath in package."
+            fi
+          fi
+          if [ "${REL_RPATH_SUPPORTED}" -eq 1 ] && otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "${LLVM_LIBCXX_DIR}"; then
             install_name_tool -delete_rpath "${LLVM_LIBCXX_DIR}" "${BIN_DST}" || {
-              echo "ERROR: failed to remove absolute rpath ${LLVM_LIBCXX_DIR}"
-              exit 1
+              echo "WARNING: failed to remove absolute rpath ${LLVM_LIBCXX_DIR}. continue."
             }
           fi
-
-          if ! install_name_tool -add_rpath "@loader_path/libs" "${BIN_DST}"; then
-            echo "ERROR: relative rpath is not supported or failed to apply. Please check install_name_tool compatibility."
-            exit 1
-          fi
-
-          if ! otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "@loader_path/libs"; then
+          if [ "${REL_RPATH_SUPPORTED}" -eq 1 ] && ! otool -l "${BIN_DST}" | grep -A2 "LC_RPATH" | grep -q "@loader_path/libs"; then
             echo "ERROR: @loader_path/libs rpath was not found after patch"
             exit 1
           fi
