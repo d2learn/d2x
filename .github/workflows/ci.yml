@@ -114,13 +114,13 @@ jobs:
           copied=0
           while IFS= read -r dep; do
             case "$dep" in
-              "${LLVM_LIBCXX_DIR}"/libc++*.dylib|"${LLVM_LIBCXX_DIR}"/libunwind*.dylib)
+              "${LLVM_LIBCXX_DIR}"/libc++*.dylib|"${LLVM_LIBCXX_DIR}"/libunwind*.dylib|"${LLVM_LIBCXX_DIR}"/libc++abi*.dylib)
                 dylib_name="$(basename "$dep")"
                 cp -L "$dep" "${LIBS_DIR}/${dylib_name}"
                 install_name_tool -change "$dep" "@rpath/${dylib_name}" "${BIN_DST}"
                 copied=1
                 ;;
-              @rpath/libc++*.dylib|@rpath/libunwind*.dylib)
+              @rpath/libc++*.dylib|@rpath/libunwind*.dylib|@rpath/libc++abi*.dylib)
                 dylib_name="$(basename "$dep")"
                 dylib_src="${LLVM_LIBCXX_DIR}/${dylib_name}"
                 if [ -f "${dylib_src}" ]; then
