@@ -25,18 +25,16 @@ jobs:
           export XLINGS_NON_INTERACTIVE=1
           curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
           curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
-          echo "$HOME/.xlings/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
+          echo "XLINGS_BIN_DIR=$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Verify Xlings and xmake
         run: |
-          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xlings --version
           xmake --version
 
       - name: install gcc 15.1 with Xlings
         run: |
-          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           for attempt in 1 2 3; do
             if xlings install gcc@15.1 -y; then
               echo "gcc@15.1 installed successfully"
@@ -50,7 +48,6 @@ jobs:
 
       - name: Build with xmake
         run: |
-          export PATH="$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xmake f -m release -y
           xmake -j"$(nproc)"
 
@@ -80,22 +77,19 @@ jobs:
           export XLINGS_NON_INTERACTIVE=1
           curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash || \
           curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
-          echo "$HOME/.xlings/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.xlings_data/bin" >> "$GITHUB_PATH"
+          echo "XLINGS_BIN_DIR=$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Verify Xlings and xmake
         run: |
-          export PATH="/opt/homebrew/bin:$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
           xlings --version
           xmake --version
 
       - name: Build with xmake (LLVM 20 toolchain)
         run: |
-          export PATH="/opt/homebrew/bin:$HOME/.xlings/bin:$HOME/.xlings_data/bin:$PATH"
-          export PATH=/opt/homebrew/opt/llvm@20/bin:$PATH
           export LLVM_PREFIX=/opt/homebrew/opt/llvm@20
-          xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
-          xmake -j"$(sysctl -n hw.ncpu)"
+          PATH="/opt/homebrew/opt/llvm@20/bin:$PATH" xmake f -p macosx -m release --toolchain=llvm --sdk=/opt/homebrew/opt/llvm@20 -y
+          PATH="/opt/homebrew/opt/llvm@20/bin:$PATH" xmake -j"$(sysctl -n hw.ncpu)"
 
       - name: Patch macOS binary rpath and collect LLVM libc++ libs
         run: |
