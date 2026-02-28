@@ -36,12 +36,13 @@ jobs:
 
       - name: Build with xmake
         run: |
+          xmake f -m release -y
           xmake -vv -y -j"$(nproc)"
 
       - name: Test d2x
         run: |
           build/linux/x86_64/release/d2x --version
-          build/linux/x86_64/release/d2x install d2mcpp
+          build/linux/x86_64/release/d2x install d2mcpp -y
           cd d2mcpp
           ../build/linux/x86_64/release/d2x --version
 
@@ -82,7 +83,7 @@ jobs:
       - name: Test d2x
         run: |
           build/macosx/arm64/release/d2x --version
-          build/macosx/arm64/release/d2x install d2mcpp
+          build/macosx/arm64/release/d2x install d2mcpp -y
           cd d2mcpp
           ../build/macosx/arm64/release/d2x --version
 
