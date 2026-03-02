@@ -23,9 +23,12 @@ namespace xlings {
     );
 }
 
-export bool ensure_xlings_installed() {
+export bool ensure_xlings_installed(bool auto_yes = false) {
     if (!has_xlings()) {
-        if (!d2x::utils::ask_yes_no("xlings 未安装，是否现在安装?", true)) {
+        if (auto_yes) {
+            platform::set_env_variable("XLINGS_NON_INTERACTIVE", "1");
+            std::println("xlings 未安装，正在自动安装...");
+        } else if (!d2x::utils::ask_yes_no("xlings 未安装，是否现在安装?", true)) {
             std::println("已取消安装");
             return false;
         }
@@ -38,14 +41,19 @@ export bool ensure_xlings_installed() {
     return true;
 }
 
-export bool install(const std::string& pkgname) {
+export bool install(const std::string& pkgname, bool auto_yes = false) {
 
     std::println("开始安装 -> {}", pkgname);
 
-    ensure_xlings_installed();
+    if (!ensure_xlings_installed(auto_yes)) {
+        return false;
+    }
 
     // Install the package
     std::string command = "xlings install d2x:" + pkgname;
+    if (auto_yes) {
+        command += " -y";
+    }
     std::println("正在执行: {}", command);
     int status = platform::exec(command.c_str());
 

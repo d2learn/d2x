@@ -83,6 +83,12 @@ d2x new hello
 d2x install d2mcpp
 ```
 
+> 非交互自动确认可使用:
+
+```
+d2x install d2mcpp -y
+```
+
 **教程书籍**
 
 > 在一个d2x类教程项目中, 可以通过book命令本地预览教程的电子书

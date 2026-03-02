@@ -63,6 +63,17 @@ void new_project(const cmdline::ParsedArgs& args) {
 }
 
 export int run(int argc, char* argv[]) {
+    auto install_cmd = cmdline::App("install")
+        .description("install d2x package via xlings")
+        .option(cmdline::Option("yes").short_name('y').help("auto confirm installation"))
+        .option(cmdline::Option('Y').help("alias of -y"))
+        .arg("package").required().help("package name")
+        .action([](const cmdline::ParsedArgs& a) {
+            apply_global_options(a);
+            const bool auto_yes = a.is_flag_set("yes") || a.is_flag_set("Y");
+            xlings::install(std::string(a.positional(0)), auto_yes);
+        });
+
     auto app = cmdline::App("d2x")
         .version(std::string(Info::VERSION))
         .description("d2x command line tool")
@@ -79,13 +90,7 @@ export int run(int argc, char* argv[]) {
                 apply_global_options(a);
                 new_project(a);
             })
-        .subcommand("install")
-            .description("install d2x package via xlings")
-            .arg("package").required().help("package name")
-            .action([](const cmdline::ParsedArgs& a) {
-                apply_global_options(a);
-                xlings::install(std::string(a.positional(0)));
-            })
+        .subcommand(std::move(install_cmd))
         .subcommand("book")
             .description("open project's book")
             .action([](const cmdline::ParsedArgs& a) {
