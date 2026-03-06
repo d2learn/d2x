@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Xlings
+        run: curl -fsSL https://d2learn.org/xlings-install.sh | bash
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+
+      - name: Install gcc 15.1 with Xlings
+        run: |
+          export PATH=/home/xlings/.xlings_data/bin:$PATH
+          xlings install gcc@15.1 -y
+
+      - name: Build with xmake
+        run: |
+          export PATH=/home/xlings/.xlings_data/bin:$PATH
+          xmake f -m release -y
+          xmake -j$(nproc)
+
+      - name: Verify d2x --version
+        run: |
+          export PATH=/home/xlings/.xlings_data/bin:$PATH
+          ./build/linux/x86_64/release/d2x --version
