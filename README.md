@@ -10,7 +10,7 @@
 | --- |
 
 ```cpp
-d2x version: 0.1.1
+d2x version: 0.1.4
 
 Usage: $ d2x [command] [target] [options]
 
