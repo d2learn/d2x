@@ -11,7 +11,7 @@ namespace platform {
 
     static std::string gRundir = std::filesystem::current_path().string();
 
-    export using platform_impl::XLINGS_BIN;
+    export using platform_impl::get_xlings_bin;
     export using platform_impl::XLINGS_INSTALL_CMD;
 
     export using platform_impl::clear_console;
@@ -65,7 +65,7 @@ namespace platform {
         int status = platform::exec(std::string(XLINGS_INSTALL_CMD));
         if (status == 0) {
             std::println("xlings 安装成功！");
-            std::string xlings_path { std::filesystem::path(XLINGS_BIN).parent_path().string() };
+            std::string xlings_path { std::filesystem::path(get_xlings_bin()).parent_path().string() };
             char* path_env = std::getenv("PATH");
             if (path_env) {
                 std::string new_path = std::string(path_env) + ";" + xlings_path;
