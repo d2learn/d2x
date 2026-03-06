@@ -30,7 +30,7 @@ jobs:
 
       - name: Build with xmake
         run: |
-          xmake f -m release -y
+          xmake f -m release -vv -y
           xmake -j$(nproc)
 
       - name: Verify d2x --version
