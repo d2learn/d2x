@@ -10,17 +10,15 @@ namespace xlings {
 
 [[nodiscard]] bool has_xlings() {
 
-    // check by XLINGS_BIN
-    if (std::filesystem::exists(platform::XLINGS_BIN)) {
+    // check by xlings binary path
+    if (std::filesystem::exists(platform::get_xlings_bin())) {
         return true;
     }
 
-    auto [status, output] = d2x::platform::run_command_capture("xlings");
+    auto [status, output] = d2x::platform::run_command_capture("xlings --version");
     auto clean_output = d2x::utils::strip_ansi(output);
-    return status == 0 && (
-        clean_output.find("xlings version") != std::string::npos ||
-        clean_output.find("xlings 版本") != std::string::npos
-    );
+    // match xlings x.x.x format to check if xlings is installed
+    return status == 0 && std::regex_match(clean_output, std::regex("xlings (\\d+\\.\\d+\\.\\d+)"));
 }
 
 export bool ensure_xlings_installed() {

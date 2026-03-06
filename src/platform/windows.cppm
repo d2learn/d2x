@@ -12,7 +12,6 @@ import std;
 namespace d2x {
 namespace platform_impl {
 
-    export constexpr std::string_view XLINGS_BIN = "C:\\Users\\Public\\xlings\\.xlings_data\\bin\\xlings";
     export constexpr std::string_view XLINGS_INSTALL_CMD = "powershell -Command \"irm https://d2learn.org/xlings-install.ps1.txt | iex\"";
 
     export std::pair<int, std::string> run_command_capture(const std::string& cmd) {
@@ -38,6 +37,10 @@ namespace platform_impl {
         if (const char* home = std::getenv("USERPROFILE")) return home;
         if (const char* appdata = std::getenv("APPDATA")) return appdata;
         return ".";
+    }
+
+    export inline std::string get_xlings_bin() {
+        return get_home_dir() + "\\.xlings\\subos\\current\\bin\\xlings";
     }
 
     export void set_env_variable(const std::string& key, const std::string& value) {
