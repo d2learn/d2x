@@ -25,8 +25,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
+      # Install script (d2learn.org/xlings-install.sh) should use XLINGS_NON_INTERACTIVE=1 to skip /dev/tty when not available (e.g. CI)
       - name: Install Xlings
         run: curl -fsSL https://d2learn.org/xlings-install.sh | bash
+        env:
+          XLINGS_NON_INTERACTIVE: 1
 
       - name: install gcc 15.1 with Xlings
         run: |
