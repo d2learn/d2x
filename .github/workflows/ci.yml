@@ -42,7 +42,7 @@ jobs:
 
       - name: Install musl-gcc 15.1
         run: |
-          MUSL_SDK=$HOME/.xlings/data/xpkgs/musl-gcc/15.1.0
+          MUSL_SDK=$HOME/.xlings/data/xpkgs/xim-x-musl-gcc/15.1.0
           mkdir -p "$MUSL_SDK"
           curl -fSL# https://github.com/xlings-res/musl-gcc/releases/download/15.1.0/musl-gcc-15.1.0-linux-x86_64.tar.gz | tar xz -C "$MUSL_SDK" --strip-components=1
           echo "MUSL_SDK=$MUSL_SDK" >> "$GITHUB_ENV"
