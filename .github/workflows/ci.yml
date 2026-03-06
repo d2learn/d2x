@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  XMAKE_VERSION: v3.0.7
-
 jobs:
   build-linux:
     runs-on: ubuntu-24.04
@@ -19,54 +16,15 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y curl git build-essential
+          sudo apt-get install -y build-essential
 
-      - name: Install xmake (bundled ${{ env.XMAKE_VERSION }})
-        run: |
-          XMAKE_URL="https://github.com/xmake-io/xmake/releases/download/${{ env.XMAKE_VERSION }}/xmake-bundle-${{ env.XMAKE_VERSION }}.linux.x86_64"
-          curl -fsSL -o xmake.bin "$XMAKE_URL" -H "Accept: application/octet-stream"
-          chmod +x xmake.bin
-          mkdir -p xmake/bin
-          mv xmake.bin xmake/bin/xmake
-          echo "PATH=$GITHUB_WORKSPACE/xmake/bin:$PATH" >> "$GITHUB_ENV"
-          export PATH="$GITHUB_WORKSPACE/xmake/bin:$PATH"
-          xmake --version
-
-      - name: Install Xlings
-        env:
-          XLINGS_NON_INTERACTIVE: 1
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/main/tools/other/quick_install.sh | bash
-          echo "XLINGS_HOME=$HOME/.xlings" >> "$GITHUB_ENV"
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
-
-      - name: Install musl-gcc 15.1
-        run: |
-          MUSL_SDK=$HOME/.xlings/data/xpkgs/xim-x-musl-gcc/15.1.0
-          mkdir -p "$MUSL_SDK"
-          curl -fSL# https://github.com/xlings-res/musl-gcc/releases/download/15.1.0/musl-gcc-15.1.0-linux-x86_64.tar.gz | tar xz -C "$MUSL_SDK" --strip-components=1
-          echo "MUSL_SDK=$MUSL_SDK" >> "$GITHUB_ENV"
-          echo "CC=x86_64-linux-musl-gcc" >> "$GITHUB_ENV"
-          echo "CXX=x86_64-linux-musl-g++" >> "$GITHUB_ENV"
-          echo "PATH=$MUSL_SDK/bin:$PATH" >> "$GITHUB_ENV"
-          export PATH="$MUSL_SDK/bin:$PATH"
-          test -f "$MUSL_SDK/x86_64-linux-musl/include/c++/15.1.0/bits/std.cc"
-          x86_64-linux-musl-g++ --version
-
-      - name: Setup musl runtime
-        run: |
-          LIBC_SO="$MUSL_SDK/x86_64-linux-musl/lib/libc.so"
-          LOADER_DIR="/home/xlings/.xlings_data/lib"
-          sudo mkdir -p "$LOADER_DIR"
-          sudo ln -sfn "$LIBC_SO" "$LOADER_DIR/ld-musl-x86_64.so.1"
-          sudo ln -sfn "$LIBC_SO" /lib/ld-musl-x86_64.so.1
-          echo "$MUSL_SDK/x86_64-linux-musl/lib" | sudo tee /etc/ld-musl-x86_64.path > /dev/null
-          sudo ln -sfn "$MUSL_SDK/x86_64-linux-musl/lib/libstdc++.so.6" /lib/libstdc++.so.6
-          sudo ln -sfn "$MUSL_SDK/x86_64-linux-musl/lib/libgcc_s.so.1" /lib/libgcc_s.so.1
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
 
       - name: Configure xmake
-        run: |
-          xmake f -c -p linux -m release --sdk="$MUSL_SDK" --sysroot="$MUSL_SDK/x86_64-linux-musl" --cross=x86_64-linux-musl- --cc="$CC" --cxx="$CXX" -y
+        run: xmake f -p linux -m release -y
 
       - name: Build with xmake
         run: xmake -j$(nproc)

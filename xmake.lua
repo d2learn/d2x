@@ -24,6 +24,6 @@ target("d2x")
         add_linkdirs(llvm_prefix .. "/lib/c++")
         add_ldflags("-Wl,-rpath," .. llvm_prefix .. "/lib/c++", {force = true})
     elseif is_plat("linux") then
-        add_ldflags("-static-libstdc++", "-static-libgcc", {force = true})
+        add_ldflags("-static", {force = true})
     end
 
