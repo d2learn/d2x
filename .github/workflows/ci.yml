@@ -26,7 +26,7 @@ jobs:
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Install xmake and gcc via Xlings
-        run: xlings install xmake@3.0.7 gcc@15 -y
+        run: xlings install xmake@3.0.7 gcc@15 openssl@3.1.5 -y
 
       - name: Build with xmake
         run: |
@@ -35,3 +35,27 @@ jobs:
 
       - name: Verify d2x --version
         run: ./build/linux/x86_64/release/d2x --version
+
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Xlings
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run: |
+          curl -fsSL https://d2learn.org/xlings-install.sh | bash
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+      
+      - name: Install xmake and llvm@20 via Xlings
+        run: xlings install xmake@3.0.7 llvm@20 -y
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -vv -y
+          xmake -j$(nproc)
+
+      - name: Verify d2x --version
+        run: ./build/macosx/arm64/release/d2x --version

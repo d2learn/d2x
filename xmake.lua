@@ -19,10 +19,7 @@ target("d2x")
     
     -- platform specific settings
     if is_plat("macosx") then
-
-        local llvm_prefix = os.getenv("LLVM_PREFIX") or "/opt/homebrew/opt/llvm@20"
-        add_linkdirs(llvm_prefix .. "/lib/c++")
-        add_ldflags("-Wl,-rpath," .. llvm_prefix .. "/lib/c++", {force = true})
+        set_toolchains("llvm")
     elseif is_plat("linux") then
         add_ldflags("-static", {force = true})
     end
