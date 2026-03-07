@@ -20,6 +20,9 @@ target("d2x")
     -- platform specific settings
     if is_plat("macosx") then
         set_toolchains("llvm")
+        add_cflags("-mmacosx-version-min=11.0")
+        add_cxxflags("-mmacosx-version-min=11.0")
+        add_ldflags("-mmacosx-version-min=11.0")
     elseif is_plat("linux") then
         add_ldflags("-static", {force = true})
     end
