@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  XLINGS_VERSION: v0.4.0
+
 jobs:
   build-linux:
     runs-on: ubuntu-24.04
@@ -22,11 +25,17 @@ jobs:
         env:
           XLINGS_NON_INTERACTIVE: 1
         run: |
-          curl -fsSL https://d2learn.org/xlings-install.sh | bash
+          VERSION_NUM="${XLINGS_VERSION#v}"
+          TARBALL="xlings-${VERSION_NUM}-linux-x86_64.tar.gz"
+          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
+          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
+          chmod +x "$EXTRACT_DIR/bin/xlings"
+          "$EXTRACT_DIR/bin/xlings" self install
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
-      - name: Install xmake and gcc via Xlings
-        run: xlings install xmake@3.0.7 gcc@15 openssl@3.1.5 -y
+      - name: Install Project Dependencies via Xlings
+        run: xlings install
 
       - name: Build with xmake
         run: |
@@ -46,11 +55,18 @@ jobs:
         env:
           XLINGS_NON_INTERACTIVE: 1
         run: |
-          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
+          VERSION_NUM="${XLINGS_VERSION#v}"
+          TARBALL="xlings-${VERSION_NUM}-macosx-arm64.tar.gz"
+          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
+          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
+          xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
+          chmod +x "$EXTRACT_DIR/bin/xlings"
+          "$EXTRACT_DIR/bin/xlings" self install
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
-      
-      - name: Install xmake and llvm@20 via Xlings
-        run: xlings install xmake@3.0.7 llvm@20 -y
+
+      - name: Install Project Dependencies via Xlings
+        run: xlings install
 
       - name: Build with xmake
         run: |
