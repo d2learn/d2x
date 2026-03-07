@@ -73,6 +73,7 @@ jobs:
         run: |
           cd ..
           xlings install xmake@3.0.7 llvm@20 -y
+          clang --version
 
 
       - name: Build with xmake
