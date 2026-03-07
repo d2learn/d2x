@@ -46,7 +46,7 @@ jobs:
         env:
           XLINGS_NON_INTERACTIVE: 1
         run: |
-          curl -fsSL https://d2learn.org/xlings-install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/d2learn/xlings/refs/heads/main/tools/other/quick_install.sh | bash
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
       
       - name: Install xmake and llvm@20 via Xlings
