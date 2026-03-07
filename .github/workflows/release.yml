@@ -38,9 +38,8 @@ jobs:
 
       - name: Install Project Dependencies via Xlings
         run: |
-          xlings install
-          CURRENT_DIR=$(pwd)
-          echo "PATH=$CURRENT_DIR/.xlings/subos/_/bin:$PATH" >> "$GITHUB_ENV"
+          cd ..
+          xlings install xmake@3.0.7 gcc@15 openssl@3.1.5 -y
 
       - name: Build with xmake
         run: |
@@ -81,9 +80,9 @@ jobs:
 
       - name: Install Project Dependencies via Xlings
         run: |
-          xlings install
-          CURRENT_DIR=$(pwd)
-          echo "PATH=$CURRENT_DIR/.xlings/subos/_/bin:$PATH" >> "$GITHUB_ENV"
+          cd ..
+          xlings install xmake@3.0.7 llvm@20 -y
+
 
       - name: Verify no LLVM runtime dependency
         run: |
