@@ -82,3 +82,22 @@ jobs:
 
       - name: Verify d2x --version
         run: ./build/macosx/arm64/release/d2x --version
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -y
+          xmake -j$env:NUMBER_OF_PROCESSORS
+
+      - name: Verify d2x --version
+        run: build\windows\x64\release\d2x.exe --version
