@@ -37,7 +37,9 @@ jobs:
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Install Project Dependencies via Xlings
-        run: xlings install
+        run: |
+          xlings install
+          xmake --version
 
       - name: Build with xmake
         run: |
@@ -77,7 +79,9 @@ jobs:
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Install Project Dependencies via Xlings
-        run: xlings install
+        run: |
+          xlings install
+          xmake --version
 
       - name: Verify no LLVM runtime dependency
         run: |
