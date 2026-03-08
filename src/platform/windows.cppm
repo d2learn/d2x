@@ -40,7 +40,7 @@ namespace platform_impl {
     }
 
     export inline std::string get_xlings_bin() {
-        return get_home_dir() + "\\.xlings\\subos\\current\\bin\\xlings";
+        return get_home_dir() + "\\.xlings\\subos\\current\\bin\\xlings.exe";
     }
 
     export void set_env_variable(const std::string& key, const std::string& value) {
