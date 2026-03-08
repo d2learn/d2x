@@ -3,6 +3,6 @@
     "xmake": "3.0.7",
     "gcc": { "linux": "15.1.0" },
     "openssl": { "linux": "3.1.5" },
-    "llvm": { "macos": "20" }
+    "llvm": { "macosx": "20" }
   }
 }
