@@ -1,8 +1,0 @@
--- https://github.com/d2learn/xlings
-
-xname = "d2x"
-
-xim = {
-    xmake = "3.0.4",
-    cpp = "",
-}

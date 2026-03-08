@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  XLINGS_VERSION: v0.4.0
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y curl git build-essential
+
+      - name: Install Xlings
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run: |
+          VERSION_NUM="${XLINGS_VERSION#v}"
+          TARBALL="xlings-${VERSION_NUM}-linux-x86_64.tar.gz"
+          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
+          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
+          chmod +x "$EXTRACT_DIR/bin/xlings"
+          "$EXTRACT_DIR/bin/xlings" self install
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+
+      - name: Install Project Dependencies via Xlings
+        run: |
+          #xlings install
+          cd ..
+          xlings install xmake@3.0.7 gcc@15 openssl@3.1.5 -y
+
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -vv -y
+          xmake -j$(nproc)
+
+      - name: Verify d2x --version
+        run: ./build/linux/x86_64/release/d2x --version
+
+  build-macos:
+    runs-on: [macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Xlings
+        env:
+          XLINGS_NON_INTERACTIVE: 1
+        run: |
+          VERSION_NUM="${XLINGS_VERSION#v}"
+          TARBALL="xlings-${VERSION_NUM}-macosx-arm64.tar.gz"
+          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
+          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
+          xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
+          chmod +x "$EXTRACT_DIR/bin/xlings"
+          "$EXTRACT_DIR/bin/xlings" self install
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+
+      - name: Install Project Dependencies via Xlings
+        run: |
+          cd ..
+          xlings install xmake@3.0.7 llvm@20 -y
+          clang --version
+
+
+      - name: Build with xmake
+        run: |
+          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.1.7
+          ls -al $LLVM_PREFIX
+          xmake f -m release --toolchain=llvm --sdk=$LLVM_PREFIX -vv -y
+          xmake -j$(nproc)
+
+      - name: Verify d2x --version
+        run: ./build/macosx/arm64/release/d2x --version
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Build with xmake
+        run: |
+          xmake f -m release -y
+          xmake -j$env:NUMBER_OF_PROCESSORS
+
+      - name: Verify d2x --version
+        run: build\windows\x64\release\d2x.exe --version
