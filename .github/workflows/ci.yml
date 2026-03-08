@@ -44,8 +44,10 @@ jobs:
           xmake f -m release -vv -y
           xmake -j$(nproc)
 
-      - name: Verify d2x --version
-        run: ./build/linux/x86_64/release/d2x --version
+      - name: Verify d2x
+        run: |
+          ./build/linux/x86_64/release/d2x --version
+          ./build/linux/x86_64/release/d2x new hello
 
   build-macos:
     runs-on: macos-15
@@ -78,8 +80,10 @@ jobs:
           xmake f -m release --toolchain=llvm -vv -y
           xmake -j$(nproc)
 
-      - name: Verify d2x --version
-        run: ./build/macosx/arm64/release/d2x --version
+      - name: Verify d2x
+        run: |
+          ./build/macosx/arm64/release/d2x --version
+          ./build/macosx/arm64/release/d2x new hello
 
   build-windows:
     runs-on: windows-latest
@@ -97,5 +101,7 @@ jobs:
           xmake f -m release -y
           xmake -j$env:NUMBER_OF_PROCESSORS
 
-      - name: Verify d2x --version
-        run: build\windows\x64\release\d2x.exe --version
+      - name: Verify d2x
+        run: |
+          build\windows\x64\release\d2x.exe --version
+          build\windows\x64\release\d2x.exe new hello
