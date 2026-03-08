@@ -14,19 +14,20 @@ namespace checker {
 
 // detect flag
 constexpr std::string D2X_WAIT = "D2X_WAIT";
-static auto btools = d2x::load_buildtools();
 
-std::pair<bool, std::string> build_with_error_handling(const std::string &target) {
+std::pair<bool, std::string> build_with_error_handling(const auto& btools, const std::string &target) {
     auto [exit_code, output] = btools.build(target);
     return std::make_pair(exit_code == 0, output);
 }
 
-std::pair<bool, std::string> run_with_error_handling(const std::string &target) {
+std::pair<bool, std::string> run_with_error_handling(const auto& btools, const std::string &target) {
     auto [exit_code, output] = btools.run(target);
     return std::make_pair(exit_code == 0, output);
 }
 
 export void run(const std::string& start_target = "") {
+
+    auto btools = d2x::load_buildtools();
 
     btools.load_targets();
 
@@ -78,10 +79,10 @@ export void run(const std::string& start_target = "") {
 
         while (!build_success) {
 
-            std::tie(build_success, output) = build_with_error_handling(target);
+            std::tie(build_success, output) = build_with_error_handling(btools, target);
 
             if (build_success) {
-                std::tie(build_success, output) = run_with_error_handling(target);
+                std::tie(build_success, output) = run_with_error_handling(btools, target);
             }
 
             status = build_success;
