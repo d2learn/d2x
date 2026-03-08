@@ -38,8 +38,7 @@ jobs:
 
       - name: Install Project Dependencies via Xlings
         run: |
-          cd ..
-          xlings install xmake@3.0.7 gcc@15 openssl@3.1.5 -y
+          xlings install
 
       - name: Build with xmake
         run: |
@@ -80,8 +79,7 @@ jobs:
 
       - name: Install Project Dependencies via Xlings
         run: |
-          cd ..
-          xlings install xmake@3.0.7 llvm@20 -y
+          xlings install
           clang --version
 
       - name: Build with xmake
