@@ -50,7 +50,7 @@ jobs:
         run: ./build/linux/x86_64/release/d2x --version
 
   build-macos:
-    runs-on: [macos-latest]
+    runs-on: macos-15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -78,9 +78,7 @@ jobs:
 
       - name: Build with xmake
         run: |
-          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.1.7
-          ls -al $LLVM_PREFIX
-          xmake f -m release --toolchain=llvm --sdk=$LLVM_PREFIX -vv -y
+          xmake f -m release --toolchain=llvm -vv -y
           xmake -j$(nproc)
 
       - name: Verify d2x --version

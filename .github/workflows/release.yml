@@ -59,7 +59,7 @@ jobs:
           path: d2x-${{ inputs.version }}-linux-x86_64.tar.gz
 
   build-macos:
-    runs-on: [macos-latest]
+    runs-on: macos-15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
