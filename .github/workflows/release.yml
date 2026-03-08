@@ -86,7 +86,7 @@ jobs:
 
       - name: Build with xmake
         run: |
-          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.0.7
+          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.1.7
           xmake f -m release --toolchain=llvm --sdk=$LLVM_PREFIX -vv -y
           xmake -j$(nproc)
 
