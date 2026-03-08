@@ -84,6 +84,11 @@ jobs:
           xlings install xmake@3.0.7 llvm@20 -y
           clang --version
 
+      - name: Build with xmake
+        run: |
+          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.0.7
+          xmake f -m release --toolchain=llvm --sdk=$LLVM_PREFIX -vv -y
+          xmake -j$(nproc)
 
       - name: Verify no LLVM runtime dependency
         run: |

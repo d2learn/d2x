@@ -78,7 +78,8 @@ jobs:
 
       - name: Build with xmake
         run: |
-          xmake f -m release -vv -y
+          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.0.7
+          xmake f -m release --toolchain=llvm --sdk=$LLVM_PREFIX -vv -y
           xmake -j$(nproc)
 
       - name: Verify d2x --version
