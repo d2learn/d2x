@@ -52,7 +52,7 @@ constexpr std::string_view user_prompt_template = R"(
 
 
 export class Assistant {
-    std::optional<llmapi::Client> mLLMClient;
+    std::optional<llmapi::Client<llmapi::OpenAI>> mLLMClient;
 
     // 流式请求状态
     mutable std::mutex mAnswerMutex;
@@ -74,11 +74,13 @@ public:
         mEnable(Config::is_llm_enabled())
     {
         if (mEnable) {
-            mLLMClient.emplace(Config::api_key(), Config::api_url());
-            log::info("Initialized Assistant with API URL: {}", Config::api_url());
-
-            mLLMClient->model(Config::model());
-            log::info("Using model: {}", Config::model());
+            mLLMClient.emplace(llmapi::Config{
+                .apiKey  = Config::api_key(),
+                .baseUrl = Config::api_url(),
+                .model   = Config::model()
+            });
+            log::info("Initialized Assistant with API URL: {}, model: {}",
+                       Config::api_url(), Config::model());
         } else {
             log::info("Assistant is disabled (no LLM API key configured).");
         }
@@ -190,8 +192,7 @@ private:
                     ui::update_ai_tips(mCurrentAnswer);
                 };
  
-                mLLMClient->user(mCurrentQuestion)
-                    .request(capture_stream);
+                mLLMClient->chat_stream(mCurrentQuestion, capture_stream);
             } catch (...) {
                 // 忽略异常，保留已接收的部分答案
                 log::warning("Assistant request encountered an error.");

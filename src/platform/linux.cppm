@@ -4,10 +4,10 @@ module;
 #include <cstdlib>
 
 export module d2x.platform:linux;
+import std;
 
 #if defined(__linux__)
 
-import std;
 
 namespace d2x {
 namespace platform_impl {

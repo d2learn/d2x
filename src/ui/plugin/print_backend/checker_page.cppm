@@ -1,4 +1,4 @@
-module d2x.ui.plugin.print:checker_page;
+export module d2x.ui.plugin.print:checker_page;
 
 import std;
 

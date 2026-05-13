@@ -4,10 +4,10 @@ module;
 #include <cstdlib>
 
 export module d2x.platform:windows;
+import std;
 
 #if defined(_WIN32)
 
-import std;
 
 namespace d2x {
 namespace platform_impl {

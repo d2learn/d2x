@@ -3,7 +3,7 @@ module;
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/screen.hpp>
 
-module d2x.ui.plugin.tui:help_page;
+export module d2x.ui.plugin.tui:help_page;
 
 import std;
 import d2x.ui.interface;

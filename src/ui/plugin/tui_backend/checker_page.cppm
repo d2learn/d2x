@@ -4,7 +4,7 @@ module;
 #include <ftxui/screen/screen.hpp>
 #include <ftxui/screen/terminal.hpp>
 
-module d2x.ui.plugin.tui:checker_page;
+export module d2x.ui.plugin.tui:checker_page;
 
 import std;
 import d2x.ui.interface;

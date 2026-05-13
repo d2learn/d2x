@@ -4,10 +4,10 @@ module;
 #include <cstdlib>
 
 export module d2x.platform:macos;
+import std;
 
 #if defined(__APPLE__)
 
-import std;
 
 namespace d2x {
 namespace platform_impl {
