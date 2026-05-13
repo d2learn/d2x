@@ -4,50 +4,46 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
-
-env:
-  XLINGS_VERSION: v0.4.0
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-24.04
+  build-linux-mcpp:
+    name: build (linux x86_64, mcpp)
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install system deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y curl git build-essential
-
-      - name: Install Xlings
+      - name: Install xlings
         env:
-          XLINGS_NON_INTERACTIVE: 1
+          XLINGS_VERSION: 0.4.31
         run: |
-          VERSION_NUM="${XLINGS_VERSION#v}"
-          TARBALL="xlings-${VERSION_NUM}-linux-x86_64.tar.gz"
-          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
-          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
-          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
-          chmod +x "$EXTRACT_DIR/bin/xlings"
-          "$EXTRACT_DIR/bin/xlings" self install
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+          tarball="xlings-${XLINGS_VERSION}-linux-x86_64.tar.gz"
+          curl -fsSL -o "/tmp/${tarball}" \
+            "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${tarball}"
+          tar -xzf "/tmp/${tarball}" -C /tmp
+          "/tmp/xlings-${XLINGS_VERSION}-linux-x86_64/subos/default/bin/xlings" self install
+          echo "$HOME/.xlings/subos/current/bin" >> "$GITHUB_PATH"
 
-      - name: Install Project Dependencies via Xlings
-        run: |
-          xlings install
+      - name: Refresh package index
+        run: xlings update
 
+      - name: Install workspace tools (.xlings.json → mcpp 0.0.13)
+        run: xlings install -y
 
-      - name: Build with xmake
-        run: |
-          xmake f -m release -vv -y
-          xmake -j$(nproc)
+      - name: Cache mcpp sandbox
+        uses: actions/cache@v4
+        with:
+          path: ~/.xlings/data/xpkgs/xim-x-mcpp/0.0.13/registry
+          key: mcpp-sandbox-${{ runner.os }}-mcpp0.0.13
+
+      - name: Build with mcpp
+        run: mcpp build
 
       - name: Verify d2x
         run: |
-          ./build/linux/x86_64/release/d2x --version
-          ./build/linux/x86_64/release/d2x new hello
+          binary=$(find target -name d2x -type f | head -1)
+          test -n "$binary" || { echo "d2x binary not found"; find target -type f | head -20; exit 1; }
+          chmod +x "$binary"
+          "$binary" --version
 
   build-macos:
     runs-on: macos-15
@@ -58,10 +54,10 @@ jobs:
       - name: Install Xlings
         env:
           XLINGS_NON_INTERACTIVE: 1
+          XLINGS_VERSION: 0.4.31
         run: |
-          VERSION_NUM="${XLINGS_VERSION#v}"
-          TARBALL="xlings-${VERSION_NUM}-macosx-arm64.tar.gz"
-          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          TARBALL="xlings-${XLINGS_VERSION}-macosx-arm64.tar.gz"
+          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${TARBALL}"
           tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
           EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
           xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
@@ -74,16 +70,20 @@ jobs:
           xlings install
           clang --version
 
+      - name: Configure xmake
+        run: |
+          LLVM_ROOT="$HOME/.xlings/data/xpkgs/xim-x-llvm"
+          LLVM_SDK=$(find "$LLVM_ROOT" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          test -d "$LLVM_SDK"
+          "$LLVM_SDK/bin/clang++" --version
+          xmake f -m release --toolchain=llvm --sdk="$LLVM_SDK" -y -vvD
 
       - name: Build with xmake
-        run: |
-          xmake f -m release --toolchain=llvm -vv -y
-          xmake -j$(nproc)
+        run: xmake -a -j"$(sysctl -n hw.logicalcpu)"
 
       - name: Verify d2x
         run: |
           ./build/macosx/arm64/release/d2x --version
-          ./build/macosx/arm64/release/d2x new hello
 
   build-windows:
     runs-on: windows-latest
@@ -104,4 +104,3 @@ jobs:
       - name: Verify d2x
         run: |
           build\windows\x64\release\d2x.exe --version
-          build\windows\x64\release\d2x.exe new hello

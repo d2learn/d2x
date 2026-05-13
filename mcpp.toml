@@ -1,0 +1,17 @@
+[package]
+name        = "d2x"
+version     = "0.1.2"
+description = "AI-powered development assistant for C++ projects"
+license     = "Apache-2.0"
+repo        = "https://github.com/d2learn/d2x"
+
+[targets.d2x]
+kind = "bin"
+main = "src/main.cpp"
+
+[dependencies.compat]
+ftxui = "6.1.9"
+
+[dependencies.mcpplibs]
+cmdline = "0.0.2"
+llmapi  = "0.2.6"

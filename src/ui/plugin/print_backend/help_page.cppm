@@ -1,4 +1,4 @@
-module d2x.ui.plugin.print:help_page;
+export module d2x.ui.plugin.print:help_page;
 
 import std;
 

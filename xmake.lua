@@ -4,7 +4,9 @@ set_languages("c++23")
 
 add_repositories("mcpplibs-index https://github.com/mcpplibs/mcpplibs-index.git")
 
-add_requires("llmapi 0.0.2")
+add_requires("llmapi 0.2.5")
+add_requires("mcpplibs-tinyhttps 0.2.2")
+add_requires("mbedtls v3.6.1")
 add_requires("cmdline 0.0.2")
 add_requires("ftxui 6.1.9")
 
@@ -14,13 +16,12 @@ target("d2x")
     add_files("src/main.cpp")
     -- add common module interface units
     add_files("src/**.cppm")
-    add_packages("ftxui", "llmapi", "cmdline")
+    add_packages("ftxui", "llmapi", "mcpplibs-tinyhttps", "mbedtls", "cmdline")
     set_policy("build.c++.modules", true)
-    
+
     -- platform specific settings
     if is_plat("macosx") then
         set_toolchains("llvm")
     elseif is_plat("linux") then
         add_ldflags("-static", {force = true})
     end
-

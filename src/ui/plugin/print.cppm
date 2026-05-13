@@ -7,8 +7,8 @@ export module d2x.ui.plugin.print;
 import std;
 
 import d2x.ui.interface;
-import :checker_page;
-import :help_page;
+export import :checker_page;
+export import :help_page;
 
 namespace d2x {
 
