@@ -27,14 +27,8 @@ jobs:
         env:
           XLINGS_NON_INTERACTIVE: 1
         run: |
-          VERSION_NUM="${XLINGS_VERSION#v}"
-          TARBALL="xlings-${VERSION_NUM}-linux-x86_64.tar.gz"
-          curl -fSL --retry 10 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
-          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
-          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
-          chmod +x "$EXTRACT_DIR/bin/xlings"
-          "$EXTRACT_DIR/bin/xlings" self install
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+          curl -fsSL https://raw.githubusercontent.com/openxlings/xlings/main/tools/other/quick_install.sh | bash -s "${XLINGS_VERSION}"
+          echo "$HOME/.xlings/subos/current/bin" >> "$GITHUB_PATH"
 
       - name: Refresh package index
         run: xlings update
@@ -79,15 +73,8 @@ jobs:
         env:
           XLINGS_NON_INTERACTIVE: 1
         run: |
-          VERSION_NUM="${XLINGS_VERSION#v}"
-          TARBALL="xlings-${VERSION_NUM}-macosx-arm64.tar.gz"
-          curl -fSL --retry 10 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
-          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
-          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
-          xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
-          chmod +x "$EXTRACT_DIR/bin/xlings"
-          "$EXTRACT_DIR/bin/xlings" self install
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+          curl -fsSL https://raw.githubusercontent.com/openxlings/xlings/main/tools/other/quick_install.sh | bash -s "${XLINGS_VERSION}"
+          echo "$HOME/.xlings/subos/current/bin" >> "$GITHUB_PATH"
 
       - name: Refresh package index
         run: xlings update
@@ -122,25 +109,22 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
     env:
       XLINGS_NON_INTERACTIVE: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install xlings and build with mcpp
+      - name: Install xlings
+        shell: pwsh
+        run: |
+          irm https://raw.githubusercontent.com/openxlings/xlings/main/tools/other/quick_install.ps1 | iex
+          "$env:USERPROFILE\.xlings\subos\current\bin" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+
+      - name: Build & package with mcpp
+        shell: bash
         run: |
           set -e
-          VERSION_NUM="${XLINGS_VERSION#v}"
-          ZIP="xlings-${VERSION_NUM}-windows-x86_64.zip"
-          curl -fSL --retry 10 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o "$RUNNER_TEMP/$ZIP" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${ZIP}"
-          unzip -q "$RUNNER_TEMP/$ZIP" -d "$RUNNER_TEMP/xl"
-          XL=$(find "$RUNNER_TEMP/xl" -name 'xlings.exe' | head -1)
-          "$XL" self install
-          export PATH="$HOME/.xlings/subos/current/bin:$PATH"
           xlings update
           xlings install -y
           mcpp build
