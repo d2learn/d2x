@@ -142,10 +142,16 @@ jobs:
           xlings install -y
           mcpp build
 
-      - name: Install xmake (via xlings, for the d2mcpp build path)
+      # Use a real xmake (not the xlings `xmake` shim): d2mcpp's .xlings.json
+      # pins xmake 3.0.7, which is gone from the registry, so the shim would
+      # fail to resolve. A standalone xmake ignores .xlings.json. Put it ahead
+      # of the xlings bin on PATH.
+      - name: Install xmake
         run: |
-          xlings install xmake -y
-          xmake --version
+          curl -fsSL https://xmake.io/shget.text | bash
+          source ~/.xmake/profile 2>/dev/null || true
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/xmake" --version
 
       - name: Checkout d2mcpp course
         uses: actions/checkout@v4
