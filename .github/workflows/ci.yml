@@ -142,10 +142,10 @@ jobs:
           xlings install -y
           mcpp build
 
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
+      - name: Install xmake (via xlings, for the d2mcpp build path)
+        run: |
+          xlings install xmake -y
+          xmake --version
 
       - name: Checkout d2mcpp course
         uses: actions/checkout@v4
