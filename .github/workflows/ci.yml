@@ -81,7 +81,12 @@ jobs:
         run: |
           test -d "$LLVM_SDK"
           "$LLVM_SDK/bin/clang++" --version
-          xmake f -m release --toolchain=llvm --sdk="$LLVM_SDK" -y -vvD
+          # The brew libc++ headers reference symbols (e.g. __is_posix_terminal,
+          # used by std::print) that the older macOS 14 SDK's system libc++ lacks.
+          # Link the toolchain's own libc++ runtime instead of the SDK one.
+          xmake f -m release --toolchain=llvm --sdk="$LLVM_SDK" \
+            --ldflags="-L$LLVM_SDK/lib/c++ -L$LLVM_SDK/lib -Wl,-rpath,$LLVM_SDK/lib/c++ -Wl,-rpath,$LLVM_SDK/lib" \
+            -y -vvD
 
       - name: Build with xmake
         run: xmake -a -j"$(sysctl -n hw.logicalcpu)"
