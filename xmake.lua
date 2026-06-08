@@ -4,8 +4,8 @@ set_languages("c++23")
 
 add_repositories("mcpplibs-index https://github.com/mcpplibs/mcpplibs-index.git")
 
-add_requires("llmapi 0.2.5")
-add_requires("mcpplibs-tinyhttps 0.2.2")
+add_requires("llmapi 0.2.6")
+add_requires("mcpplibs-tinyhttps 0.2.3")
 add_requires("mbedtls v3.6.1")
 add_requires("cmdline 0.0.2")
 add_requires("ftxui 6.1.9")

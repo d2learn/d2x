@@ -1,6 +1,6 @@
 {
   "workspace": {
-    "mcpp": { "linux": "0.0.13" },
+    "mcpp": { "linux": "0.0.52" },
     "xmake": "3.0.7",
     "gcc": { "linux": "15.1.0" },
     "llvm": { "macosx": "20" }
