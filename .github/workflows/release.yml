@@ -58,18 +58,15 @@ jobs:
           path: d2x-${{ inputs.version }}-linux-x86_64.tar.gz
 
   build-macos:
-    # Build on the oldest supported macOS so the artifact also runs on newer
-    # releases (issue #19). The xlings-bundled xmake is built against a fixed
-    # SDK and crashes on older runners, so xmake comes from the official action.
-    runs-on: macos-14
+    # Built on macos-15, where the xlings-bundled xmake + llvm toolchain run
+    # natively (they are compiled against a recent macOS SDK and abort on older
+    # runners; see issue #19). The static-link check below keeps the artifact
+    # free of toolchain runtime deps. macOS 14 *build* support is exercised by
+    # the CI workflow (which uses Homebrew LLVM).
+    runs-on: macos-15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
 
       - name: Install Xlings
         env:
@@ -83,12 +80,11 @@ jobs:
           xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
           chmod +x "$EXTRACT_DIR/bin/xlings"
           "$EXTRACT_DIR/bin/xlings" self install
-          # Append so the action-provided xmake keeps priority.
-          echo "PATH=$PATH:$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
+          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
-      - name: Install LLVM toolchain via Xlings
+      - name: Install Project Dependencies via Xlings
         run: |
-          xlings install llvm -y
+          xlings install
           clang --version
 
       - name: Build with xmake

@@ -58,40 +58,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Provide an OS-appropriate xmake binary. The xlings-bundled xmake is
-      # built against a fixed macOS SDK and crashes on older runners
-      # (issue #19: "built for macOS 15.5 which is newer than running OS"),
-      # so we install xmake via the official action and use xlings only for
-      # the LLVM toolchain.
+      # The xlings-bundled xmake AND llvm toolchain are built against a fixed
+      # macOS SDK and abort on older runners (issue #19):
+      #   - xmake: "built for macOS 15.5 which is newer than running OS"
+      #   - clang: dyld "Symbol not found: __ZdaPv" -> Abort trap: 6 on macos-14
+      # Use OS-matched binaries instead: xmake from the official action and
+      # LLVM from Homebrew. Project deps come from xmake's mcpplibs-index, so
+      # xlings is not needed for the macOS build.
       - name: Setup xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
 
-      - name: Install Xlings
-        env:
-          XLINGS_NON_INTERACTIVE: 1
+      - name: Install LLVM (Homebrew)
         run: |
-          TARBALL="xlings-${XLINGS_VERSION}-macosx-arm64.tar.gz"
-          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${TARBALL}"
-          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
-          EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
-          xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
-          chmod +x "$EXTRACT_DIR/bin/xlings"
-          "$EXTRACT_DIR/bin/xlings" self install
-          # Append (not prepend) so the action-provided xmake keeps priority
-          # over the xlings-bundled one.
-          echo "PATH=$PATH:$HOME/.xlings/subos/current/bin" >> "$GITHUB_ENV"
-
-      - name: Install LLVM toolchain via Xlings
-        run: |
-          xlings install llvm -y
-          which xmake && xmake --version
+          brew install llvm
+          echo "LLVM_SDK=$(brew --prefix llvm)" >> "$GITHUB_ENV"
 
       - name: Configure xmake
         run: |
-          LLVM_ROOT="$HOME/.xlings/data/xpkgs/xim-x-llvm"
-          LLVM_SDK=$(find "$LLVM_ROOT" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
           test -d "$LLVM_SDK"
           "$LLVM_SDK/bin/clang++" --version
           xmake f -m release --toolchain=llvm --sdk="$LLVM_SDK" -y -vvD
