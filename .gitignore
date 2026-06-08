@@ -3,3 +3,5 @@
 build
 target
 d2x.zip
+mcpp.lock
+compile_commands.json

@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  XLINGS_VERSION: 0.4.51
+  MCPP_VERSION: 0.0.52
+
 jobs:
   build-linux-mcpp:
     name: build (linux x86_64, mcpp)
@@ -13,8 +17,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install xlings
-        env:
-          XLINGS_VERSION: 0.4.31
         run: |
           tarball="xlings-${XLINGS_VERSION}-linux-x86_64.tar.gz"
           curl -fsSL -o "/tmp/${tarball}" \
@@ -26,14 +28,14 @@ jobs:
       - name: Refresh package index
         run: xlings update
 
-      - name: Install workspace tools (.xlings.json → mcpp 0.0.13)
+      - name: Install workspace tools (.xlings.json -> mcpp ${{ env.MCPP_VERSION }})
         run: xlings install -y
 
       - name: Cache mcpp sandbox
         uses: actions/cache@v4
         with:
-          path: ~/.xlings/data/xpkgs/xim-x-mcpp/0.0.13/registry
-          key: mcpp-sandbox-${{ runner.os }}-mcpp0.0.13
+          path: ~/.xlings/data/xpkgs/xim-x-mcpp/${{ env.MCPP_VERSION }}/registry
+          key: mcpp-sandbox-${{ runner.os }}-mcpp${{ env.MCPP_VERSION }}
 
       - name: Build with mcpp
         run: mcpp build
@@ -46,15 +48,18 @@ jobs:
           "$binary" --version
 
   build-macos:
-    runs-on: macos-15
+    name: build (${{ matrix.os }}, mcpp)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Xlings
+      - name: Install xlings
         env:
           XLINGS_NON_INTERACTIVE: 1
-          XLINGS_VERSION: 0.4.31
         run: |
           TARBALL="xlings-${XLINGS_VERSION}-macosx-arm64.tar.gz"
           curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${TARBALL}"
@@ -63,44 +68,117 @@ jobs:
           xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
           chmod +x "$EXTRACT_DIR/bin/xlings"
           "$EXTRACT_DIR/bin/xlings" self install
-          echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
+          echo "$HOME/.xlings/subos/current/bin" >> "$GITHUB_PATH"
 
-      - name: Install Project Dependencies via Xlings
-        run: |
-          xlings install
-          clang --version
+      - name: Refresh package index
+        run: xlings update
 
-      - name: Configure xmake
-        run: |
-          LLVM_ROOT="$HOME/.xlings/data/xpkgs/xim-x-llvm"
-          LLVM_SDK=$(find "$LLVM_ROOT" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          test -d "$LLVM_SDK"
-          "$LLVM_SDK/bin/clang++" --version
-          xmake f -m release --toolchain=llvm --sdk="$LLVM_SDK" -y -vvD
+      - name: Install workspace tools (.xlings.json -> mcpp ${{ env.MCPP_VERSION }})
+        run: xlings install -y
 
-      - name: Build with xmake
-        run: xmake -a -j"$(sysctl -n hw.logicalcpu)"
+      - name: Build with mcpp
+        run: mcpp build
 
       - name: Verify d2x
         run: |
-          ./build/macosx/arm64/release/d2x --version
+          BIN=$(find target -name d2x -type f | head -1)
+          test -n "$BIN" || { echo "d2x binary not found"; find target -type f | head -20; exit 1; }
+          chmod +x "$BIN"
+          "$BIN" --version
 
   build-windows:
+    name: build (windows x86_64, mcpp)
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      XLINGS_NON_INTERACTIVE: 1
     steps:
-      - name: Checkout code
+      - uses: actions/checkout@v4
+
+      # Everything in one bash step so the in-process PATH is used directly
+      # (avoids cross-step PATH translation issues for the msys/Windows mix).
+      - name: Install xlings and build with mcpp
+        run: |
+          set -e
+          ZIP="xlings-${XLINGS_VERSION}-windows-x86_64.zip"
+          curl -fSL -o "$RUNNER_TEMP/$ZIP" "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${ZIP}"
+          unzip -q "$RUNNER_TEMP/$ZIP" -d "$RUNNER_TEMP/xl"
+          XL=$(find "$RUNNER_TEMP/xl" -name 'xlings.exe' | head -1)
+          echo "xlings: $XL"
+          "$XL" self install
+          export PATH="$HOME/.xlings/subos/current/bin:$PATH"
+          xlings update
+          xlings install -y
+          mcpp build
+          D2X=$(find target -name 'd2x.exe' -type f | head -1)
+          test -n "$D2X" || { echo "d2x.exe not found"; find target -type f | head -20; exit 1; }
+          "$D2X" --version
+
+  # Smoke test: a real `d2x checker` run against the d2mcpp course must reach
+  # and report the FIRST exercise's build error within a bounded window, rather
+  # than hanging on the init log (issue #24). The checker waits for file edits
+  # forever, so a timeout kill is the expected, healthy outcome.
+  checker-smoke:
+    name: checker smoke (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xlings
+        run: |
+          tarball="xlings-${XLINGS_VERSION}-linux-x86_64.tar.gz"
+          curl -fsSL -o "/tmp/${tarball}" \
+            "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${tarball}"
+          tar -xzf "/tmp/${tarball}" -C /tmp
+          "/tmp/xlings-${XLINGS_VERSION}-linux-x86_64/subos/default/bin/xlings" self install
+          echo "$HOME/.xlings/subos/current/bin" >> "$GITHUB_PATH"
+
+      - name: Refresh package index
+        run: xlings update
+
+      - name: Build d2x with mcpp
+        run: |
+          xlings install -y
+          mcpp build
+
+      # Use a real xmake (not the xlings `xmake` shim): d2mcpp's .xlings.json
+      # pins xmake 3.0.7, which is gone from the registry, so the shim would
+      # fail to resolve. A standalone xmake ignores .xlings.json. Put it ahead
+      # of the xlings bin on PATH.
+      - name: Install xmake
+        run: |
+          curl -fsSL https://xmake.io/shget.text | bash
+          source ~/.xmake/profile 2>/dev/null || true
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/xmake" --version
+
+      - name: Checkout d2mcpp course
         uses: actions/checkout@v4
-
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
         with:
-          xmake-version: latest
+          repository: mcpp-community/d2mcpp
+          path: d2mcpp
 
-      - name: Build with xmake
+      - name: Run d2x checker (must reach first exercise, not hang on load)
         run: |
-          xmake f -m release -y
-          xmake -j$env:NUMBER_OF_PROCESSORS
-
-      - name: Verify d2x
-        run: |
-          build\windows\x64\release\d2x.exe --version
+          D2X="$PWD/$(find target -name d2x -type f | head -1)"
+          test -x "$D2X" || chmod +x "$D2X"
+          cd d2mcpp
+          # Force the print UI so output is plain text in a non-TTY runner.
+          sed -i 's/"ui_backend": *"tui"/"ui_backend": "print"/' .d2x.json || true
+          xmake f -y
+          set +e
+          timeout 120 "$D2X" checker --ui print --lang en > checker.out 2>&1
+          code=$?
+          set -e
+          echo "checker exit=$code (124 = killed by timeout while waiting for edits = expected)"
+          echo "------------------ checker output (tail) ------------------"
+          tail -n 40 checker.out || true
+          echo "-----------------------------------------------------------"
+          if grep -q "hello-mcpp" checker.out && grep -qiE "error" checker.out; then
+            echo "OK: checker reached and reported the first exercise (not stuck on the loading log)"
+          else
+            echo "FAIL: checker produced no exercise build output within the window (stuck on load?)"
+            exit 1
+          fi

@@ -15,7 +15,8 @@ namespace platform_impl {
     export constexpr std::string_view XLINGS_INSTALL_CMD = "powershell -Command \"irm https://d2learn.org/xlings-install.ps1.txt | iex\"";
 
     export std::pair<int, std::string> run_command_capture(const std::string& cmd) {
-        FILE* pipe = _popen(cmd.c_str(), "r");
+        std::string full = cmd + " 2>&1"; // redirect stderr to stdout (match linux/macos)
+        FILE* pipe = _popen(full.c_str(), "r");
         if (!pipe) {
             return {-1, std::string{}};
         }

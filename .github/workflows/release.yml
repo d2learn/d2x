@@ -9,7 +9,7 @@ on:
         type: string
 
 env:
-  XLINGS_VERSION: v0.4.0
+  XLINGS_VERSION: v0.4.51
 
 jobs:
   build-linux:
@@ -36,19 +36,29 @@ jobs:
           "$EXTRACT_DIR/bin/xlings" self install
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
-      - name: Install Project Dependencies via Xlings
-        run: |
-          xlings install
+      - name: Refresh package index
+        run: xlings update
 
-      - name: Build with xmake
+      - name: Install workspace tools (.xlings.json -> mcpp)
+        run: xlings install -y
+
+      - name: Build with mcpp (static)
+        run: mcpp build --static
+
+      - name: Locate & verify binary
         run: |
-          xmake f -m release -y
-          xmake -j$(nproc)
+          BIN=$(find target -name d2x -type f | head -1)
+          test -n "$BIN" || { echo "d2x binary not found"; find target -type f | head; exit 1; }
+          chmod +x "$BIN"
+          ver=$("$BIN" --version)
+          echo "built d2x version: $ver (release input: ${{ inputs.version }})"
+          test "$ver" = "${{ inputs.version }}" || { echo "ERROR: binary version ($ver) != release version (${{ inputs.version }})"; exit 1; }
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
 
       - name: Create release package
         run: |
           mkdir -p d2x-${{ inputs.version }}-linux-x86_64
-          cp build/linux/x86_64/release/d2x d2x-${{ inputs.version }}-linux-x86_64/
+          cp "$BIN" d2x-${{ inputs.version }}-linux-x86_64/
           tar -czf d2x-${{ inputs.version }}-linux-x86_64.tar.gz d2x-${{ inputs.version }}-linux-x86_64
 
       - name: Upload artifact
@@ -58,7 +68,9 @@ jobs:
           path: d2x-${{ inputs.version }}-linux-x86_64.tar.gz
 
   build-macos:
-    runs-on: macos-15
+    # Built on the oldest supported macOS so the artifact also runs on newer
+    # releases. mcpp manages its own toolchain, so no SDK pinning is needed.
+    runs-on: macos-14
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,31 +89,29 @@ jobs:
           "$EXTRACT_DIR/bin/xlings" self install
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
-      - name: Install Project Dependencies via Xlings
-        run: |
-          xlings install
-          clang --version
+      - name: Refresh package index
+        run: xlings update
 
-      - name: Build with xmake
-        run: |
-          export LLVM_PREFIX=$HOME/.xlings/data/xpkgs/xim-x-llvm/20.1.7
-          xmake f -m release --toolchain=llvm --sdk=$LLVM_PREFIX -vv -y
-          xmake -j$(nproc)
+      - name: Install workspace tools (.xlings.json -> mcpp)
+        run: xlings install -y
 
-      - name: Verify no LLVM runtime dependency
+      - name: Build with mcpp
+        run: mcpp build
+
+      - name: Locate & verify binary
         run: |
-          BIN=build/macosx/arm64/release/d2x
-          if otool -L "$BIN" | grep -q "llvm"; then
-            otool -L "$BIN"
-            echo "FAIL: binary links against LLVM dylib"
-            exit 1
-          fi
-          echo "OK: binary has no LLVM runtime dependency"
+          BIN=$(find target -name d2x -type f | head -1)
+          test -n "$BIN" || { echo "d2x binary not found"; find target -type f | head; exit 1; }
+          chmod +x "$BIN"
+          ver=$("$BIN" --version)
+          echo "built d2x version: $ver (release input: ${{ inputs.version }})"
+          test "$ver" = "${{ inputs.version }}" || { echo "ERROR: binary version ($ver) != release version (${{ inputs.version }})"; exit 1; }
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
 
       - name: Create release package
         run: |
           mkdir -p d2x-${{ inputs.version }}-macosx-arm64
-          cp build/macosx/arm64/release/d2x d2x-${{ inputs.version }}-macosx-arm64/
+          cp "$BIN" d2x-${{ inputs.version }}-macosx-arm64/
           tar -czf d2x-${{ inputs.version }}-macosx-arm64.tar.gz d2x-${{ inputs.version }}-macosx-arm64
 
       - name: Upload artifact
@@ -112,25 +122,39 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      XLINGS_NON_INTERACTIVE: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
-
-      - name: Build with xmake
+      - name: Install xlings and build with mcpp
         run: |
-          xmake f -m release -y
-          xmake -j$env:NUMBER_OF_PROCESSORS
+          set -e
+          VERSION_NUM="${XLINGS_VERSION#v}"
+          ZIP="xlings-${VERSION_NUM}-windows-x86_64.zip"
+          curl -fSL -o "$RUNNER_TEMP/$ZIP" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${ZIP}"
+          unzip -q "$RUNNER_TEMP/$ZIP" -d "$RUNNER_TEMP/xl"
+          XL=$(find "$RUNNER_TEMP/xl" -name 'xlings.exe' | head -1)
+          "$XL" self install
+          export PATH="$HOME/.xlings/subos/current/bin:$PATH"
+          xlings update
+          xlings install -y
+          mcpp build
+          D2X=$(find target -name 'd2x.exe' -type f | head -1)
+          test -n "$D2X" || { echo "d2x.exe not found"; find target -type f | head; exit 1; }
+          ver=$("$D2X" --version)
+          echo "built d2x version: $ver (release input: ${{ inputs.version }})"
+          test "$ver" = "${{ inputs.version }}" || { echo "ERROR: binary version ($ver) != release version (${{ inputs.version }})"; exit 1; }
+          mkdir -p "d2x-${{ inputs.version }}-windows-x86_64"
+          cp "$D2X" "d2x-${{ inputs.version }}-windows-x86_64/"
 
-      - name: Create release package
+      - name: Zip release package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path "d2x-${{ inputs.version }}-windows-x86_64" -Force
-          Copy-Item "build\windows\x64\release\d2x.exe" -Destination "d2x-${{ inputs.version }}-windows-x86_64\"
           Compress-Archive -Path "d2x-${{ inputs.version }}-windows-x86_64" -DestinationPath "d2x-${{ inputs.version }}-windows-x86_64.zip"
 
       - name: Upload artifact

@@ -91,7 +91,14 @@ export int run(int argc, char* argv[]) {
             .action([](const cmdline::ParsedArgs& a) {
                 apply_global_options(a);
                 auto bookdir = std::filesystem::path(platform::get_rundir()) / "book";
-                if (Config::lang() == "en") bookdir /= "en";
+                // Resolve language sub-book generically (issue #8): any language
+                // shipped by the target project as book/<lang> is supported, not
+                // just zh/en. Falls back to the default book/ when absent.
+                const auto& lang = Config::lang();
+                if (!lang.empty() && lang != "auto") {
+                    auto langdir = bookdir / lang;
+                    if (std::filesystem::exists(langdir)) bookdir = langdir;
+                }
                 std::println("Opening book: {}", bookdir.string());
                 if (std::filesystem::exists(bookdir)) {
                     platform::run_command_capture("xlings install mdbook -y");
