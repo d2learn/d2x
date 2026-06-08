@@ -182,3 +182,72 @@ jobs:
             echo "FAIL: checker produced no exercise build output within the window (stuck on load?)"
             exit 1
           fi
+
+  # TEMP (issue #24 verification): run `d2x checker` on a real Windows runner.
+  # The original report was a Windows-only hang on the init log. This job builds
+  # d2x.exe (mcpp), runs the checker against d2mcpp under a bounded window, and
+  # asserts it REACHES the first exercise rather than stalling. PASS => the hang
+  # does not reproduce on current d2x; FAIL => #24 still reproduces.
+  checker-smoke-windows:
+    name: checker smoke (windows)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    env:
+      XLINGS_NON_INTERACTIVE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build d2x.exe with mcpp
+        run: |
+          set -e
+          ZIP="xlings-${XLINGS_VERSION}-windows-x86_64.zip"
+          curl -fSL -o "$RUNNER_TEMP/$ZIP" "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${ZIP}"
+          unzip -q "$RUNNER_TEMP/$ZIP" -d "$RUNNER_TEMP/xl"
+          XL=$(find "$RUNNER_TEMP/xl" -name 'xlings.exe' | head -1)
+          "$XL" self install
+          export PATH="$HOME/.xlings/subos/current/bin:$PATH"
+          xlings update
+          xlings install -y
+          mcpp build
+          D2X=$(find "$PWD/target" -name 'd2x.exe' -type f | head -1)
+          test -n "$D2X" || { echo "d2x.exe not found"; exit 1; }
+          "$D2X" --version
+          echo "D2X=$D2X" >> "$GITHUB_ENV"
+
+      - name: Setup xmake (for the d2mcpp build path)
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Checkout d2mcpp course
+        uses: actions/checkout@v4
+        with:
+          repository: mcpp-community/d2mcpp
+          path: d2mcpp
+
+      - name: Run d2x checker on Windows (must reach first exercise, not hang)
+        run: |
+          echo "gcc:"; gcc --version 2>/dev/null | head -1 || echo "(no gcc on PATH)"
+          echo "xmake:"; xmake --version | head -1
+          cd d2mcpp
+          sed -i 's/"ui_backend": *"tui"/"ui_backend": "print"/' .d2x.json || true
+          xmake f -y || true
+          # The checker waits for file edits forever; run it in the background and
+          # force-kill by image name after the window (reliable on Windows).
+          "$D2X" checker --ui print --lang en > checker.out 2>&1 &
+          sleep 100
+          taskkill //F //IM d2x.exe //T 2>/dev/null || true
+          sleep 3
+          echo "------------------ checker output (tail) ------------------"
+          tail -n 50 checker.out || true
+          echo "-----------------------------------------------------------"
+          if grep -qi "hello-mcpp" checker.out; then
+            echo "OK: checker reached the first exercise on Windows (issue #24 does NOT reproduce)"
+          else
+            echo "FAIL: checker did not reach the first exercise within the window."
+            echo "Output is init-log only => the reported Windows hang (#24) reproduces."
+            exit 1
+          fi
