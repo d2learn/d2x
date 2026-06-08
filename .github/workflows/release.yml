@@ -29,7 +29,7 @@ jobs:
         run: |
           VERSION_NUM="${XLINGS_VERSION#v}"
           TARBALL="xlings-${VERSION_NUM}-linux-x86_64.tar.gz"
-          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          curl -fSL --retry 10 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
           tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
           EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
           chmod +x "$EXTRACT_DIR/bin/xlings"
@@ -81,7 +81,7 @@ jobs:
         run: |
           VERSION_NUM="${XLINGS_VERSION#v}"
           TARBALL="xlings-${VERSION_NUM}-macosx-arm64.tar.gz"
-          curl -fSL -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
+          curl -fSL --retry 10 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o "$RUNNER_TEMP/$TARBALL" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${TARBALL}"
           tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP"
           EXTRACT_DIR=$(find "$RUNNER_TEMP" -maxdepth 1 -type d -name "xlings-*" | head -1)
           xattr -dr com.apple.quarantine "$EXTRACT_DIR" 2>/dev/null || true
@@ -136,7 +136,7 @@ jobs:
           set -e
           VERSION_NUM="${XLINGS_VERSION#v}"
           ZIP="xlings-${VERSION_NUM}-windows-x86_64.zip"
-          curl -fSL -o "$RUNNER_TEMP/$ZIP" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${ZIP}"
+          curl -fSL --retry 10 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o "$RUNNER_TEMP/$ZIP" "https://github.com/d2learn/xlings/releases/download/${XLINGS_VERSION}/${ZIP}"
           unzip -q "$RUNNER_TEMP/$ZIP" -d "$RUNNER_TEMP/xl"
           XL=$(find "$RUNNER_TEMP/xl" -name 'xlings.exe' | head -1)
           "$XL" self install
