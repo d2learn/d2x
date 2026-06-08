@@ -72,8 +72,10 @@ jobs:
 
       - name: Install LLVM (Homebrew)
         run: |
-          brew install llvm
-          echo "LLVM_SDK=$(brew --prefix llvm)" >> "$GITHUB_ENV"
+          # Pin LLVM 20 to match the toolchain the project is known to build
+          # with; libc++ from LLVM 22+ tightens <format> and rejects the code.
+          brew install llvm@20
+          echo "LLVM_SDK=$(brew --prefix llvm@20)" >> "$GITHUB_ENV"
 
       - name: Configure xmake
         run: |
