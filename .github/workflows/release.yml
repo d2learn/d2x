@@ -36,19 +36,29 @@ jobs:
           "$EXTRACT_DIR/bin/xlings" self install
           echo "PATH=$HOME/.xlings/subos/current/bin:$PATH" >> "$GITHUB_ENV"
 
-      - name: Install Project Dependencies via Xlings
-        run: |
-          xlings install
+      - name: Refresh package index
+        run: xlings update
 
-      - name: Build with xmake
+      - name: Install workspace tools (.xlings.json -> mcpp)
+        run: xlings install -y
+
+      - name: Build with mcpp (static)
+        run: mcpp build --static
+
+      - name: Locate & verify binary
         run: |
-          xmake f -m release -y
-          xmake -j$(nproc)
+          BIN=$(find target -name d2x -type f | head -1)
+          test -n "$BIN" || { echo "d2x binary not found"; find target -type f | head; exit 1; }
+          chmod +x "$BIN"
+          ver=$("$BIN" --version)
+          echo "built d2x version: $ver (release input: ${{ inputs.version }})"
+          test "$ver" = "${{ inputs.version }}" || { echo "ERROR: binary version ($ver) != release version (${{ inputs.version }})"; exit 1; }
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
 
       - name: Create release package
         run: |
           mkdir -p d2x-${{ inputs.version }}-linux-x86_64
-          cp build/linux/x86_64/release/d2x d2x-${{ inputs.version }}-linux-x86_64/
+          cp "$BIN" d2x-${{ inputs.version }}-linux-x86_64/
           tar -czf d2x-${{ inputs.version }}-linux-x86_64.tar.gz d2x-${{ inputs.version }}-linux-x86_64
 
       - name: Upload artifact

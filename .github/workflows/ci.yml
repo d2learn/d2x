@@ -114,3 +114,64 @@ jobs:
       - name: Verify d2x
         run: |
           build\windows\x64\release\d2x.exe --version
+
+  # Smoke test: a real `d2x checker` run against the d2mcpp course must reach
+  # and report the FIRST exercise's build error within a bounded window, rather
+  # than hanging on the init log (issue #24). The checker waits for file edits
+  # forever, so a timeout kill is the expected, healthy outcome.
+  checker-smoke:
+    name: checker smoke (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xlings
+        run: |
+          tarball="xlings-${XLINGS_VERSION}-linux-x86_64.tar.gz"
+          curl -fsSL -o "/tmp/${tarball}" \
+            "https://github.com/d2learn/xlings/releases/download/v${XLINGS_VERSION}/${tarball}"
+          tar -xzf "/tmp/${tarball}" -C /tmp
+          "/tmp/xlings-${XLINGS_VERSION}-linux-x86_64/subos/default/bin/xlings" self install
+          echo "$HOME/.xlings/subos/current/bin" >> "$GITHUB_PATH"
+
+      - name: Refresh package index
+        run: xlings update
+
+      - name: Build d2x with mcpp
+        run: |
+          xlings install -y
+          mcpp build
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Checkout d2mcpp course
+        uses: actions/checkout@v4
+        with:
+          repository: mcpp-community/d2mcpp
+          path: d2mcpp
+
+      - name: Run d2x checker (must reach first exercise, not hang on load)
+        run: |
+          D2X="$PWD/$(find target -name d2x -type f | head -1)"
+          test -x "$D2X" || chmod +x "$D2X"
+          cd d2mcpp
+          # Force the print UI so output is plain text in a non-TTY runner.
+          sed -i 's/"ui_backend": *"tui"/"ui_backend": "print"/' .d2x.json || true
+          xmake f -y
+          set +e
+          timeout 120 "$D2X" checker --ui print --lang en > checker.out 2>&1
+          code=$?
+          set -e
+          echo "checker exit=$code (124 = killed by timeout while waiting for edits = expected)"
+          echo "------------------ checker output (tail) ------------------"
+          tail -n 40 checker.out || true
+          echo "-----------------------------------------------------------"
+          if grep -q "hello-mcpp" checker.out && grep -qiE "error" checker.out; then
+            echo "OK: checker reached and reported the first exercise (not stuck on the loading log)"
+          else
+            echo "FAIL: checker produced no exercise build output within the window (stuck on load?)"
+            exit 1
+          fi
