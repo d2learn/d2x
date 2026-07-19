@@ -1,6 +1,7 @@
 module;
 
 #include <cstdio>
+#include <sys/wait.h>
 #include <cstdlib>
 
 export module d2x.platform:macos;
@@ -30,6 +31,33 @@ namespace platform_impl {
         int status = ::pclose(pipe);
 
         return {status, output};
+    }
+
+    // 流式逐行读，见 linux 分区的说明。
+    export int run_command_lines(const std::string& cmd,
+                                 const std::function<void(std::string_view)>& on_line) {
+        std::string full = cmd + " 2>&1";
+        FILE* pipe = ::popen(full.c_str(), "r");
+        if (!pipe) return -1;
+
+        std::string line;
+        std::array<char, 4096> buffer{};
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+            line += buffer.data();
+            if (line.ends_with('\n')) {
+                line.pop_back();
+                if (line.ends_with('\r')) line.pop_back();
+                on_line(line);
+                line.clear();
+            }
+        }
+        if (!line.empty()) on_line(line);
+
+        int status = ::pclose(pipe);
+        if (status == -1) return 127;
+        if (WIFEXITED(status)) return WEXITSTATUS(status);
+        if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+        return status;
     }
 
     export void clear_console() {

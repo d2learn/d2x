@@ -53,6 +53,15 @@ namespace platform {
         return platform_impl::run_command_capture(cmd);
     }
 
+    // 流式版本：每读到一行就回调，用于 Provider 的 NDJSON 事件流。
+    // 同样先清 LD_LIBRARY_PATH —— 子进程可能再去 spawn 别的动态链接程序，
+    // 继承下去会加载错配的运行时（mcpp 私有 glibc 就会这样段错误）。
+    export int run_command_lines(const std::string& cmd,
+                                 const std::function<void(std::string_view)>& on_line) {
+        set_env_variable("LD_LIBRARY_PATH", "");
+        return platform_impl::run_command_lines(cmd, on_line);
+    }
+
     export int exec(const std::string& cmd) {
         // TODO: fix return 139 issue (on linux)
         // workaround by clear LD_LIBRARY_PATH

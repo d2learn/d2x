@@ -1,3 +1,8 @@
+// 学习循环的编排。
+//
+// 这里只做编排：从 Provider 拿练习、驱动 Session 推进、把事件转给 UI、
+// 失败时等文件变更再重试。它不知道怎么编译、不知道怎么判定通过——
+// 那些是 Provider 的事（见 d2x.provider）。
 export module d2x.checker;
 
 import std;
@@ -5,129 +10,125 @@ import std;
 import d2x.log;
 import d2x.utils;
 import d2x.ui;
-import d2x.buildtools;
+import d2x.config;
+import d2x.domain;
+import d2x.provider;
+import d2x.session;
 import d2x.assistant;
 import d2x.editor;
+import d2x.platform;
 
 namespace d2x {
 namespace checker {
 
-// detect flag
-constexpr std::string D2X_WAIT = "D2X_WAIT";
+using domain::Outcome;
 
-std::pair<bool, std::string> build_with_error_handling(const auto& btools, const std::string &target) {
-    auto [exit_code, output] = btools.build(target);
-    return std::make_pair(exit_code == 0, output);
-}
+// 学员多久没动文件就重新轮询一次（毫秒）
+constexpr int kIdlePollMs  = 20 * 1000;
+// 连续变更的合并窗口，避免编辑器保存一次触发多轮重建
+constexpr int kSettleMs    = 1 * 1000;
 
-std::pair<bool, std::string> run_with_error_handling(const auto& btools, const std::string &target) {
-    auto [exit_code, output] = btools.run(target);
-    return std::make_pair(exit_code == 0, output);
+std::filesystem::path state_path() {
+    return std::filesystem::path(platform::get_rundir()) / ".d2x" / "state.json";
 }
 
 export void run(const std::string& start_target = "") {
 
-    auto btools = d2x::load_buildtools();
-
-    btools.load_targets();
-
-    auto targets = btools.get_targets();
-
-    int total_targets = targets.size();
-    int built_targets = 0;
-
-    if (total_targets == 0) {
-        log::warning("No targets found for checking.");
+    auto command = Config::buildtools();
+    if (command.empty()) {
+        log::error("未配置 buildtools —— 请在 .d2x.json 里指定 Provider 命令");
         return;
     }
 
-    // 如果指定了起始target，找到第一个匹配的位置
-    std::size_t start_idx = 0;
-    if (!start_target.empty()) {
-        bool found = false;
-        for (std::size_t i = 0; i < targets.size(); ++i) {
-            if (targets[i].find(start_target) != std::string::npos) {
-                start_idx = i;
-                found = true;
-                log::info("Starting from target: {}", targets[i]);
-                break;
-            }
-            built_targets += 1; // skip targets before the matched one
-        }
-        if (!found) {
-            built_targets = 0; // reset if not found
-            log::warning("Target '{}' not found. Starting from beginning.", start_target);
-        }
+    auto provider = provider::ProcessProvider(command);
+
+    // Provider 起不来是致命错误，且必须说清楚是「Provider 挂了」而不是
+    // 「没有练习」。旧实现在这里先打 "Failed to load targets with exit code"
+    // 再打 "No targets found for checking."，两层都在误导学员。
+    std::string provider_name;
+    if (!provider.describe(provider_name)) {
+        log::error("Provider 无响应: {}", command);
+        log::error("请确认该命令可执行，且实现了 d2x Provider 协议（describe/exercises/check）");
+        return;
     }
+    log::info("Provider: {}", provider_name);
+
+    auto exercises = provider.exercises();
+    if (exercises.empty()) {
+        log::warning("Provider '{}' 没有返回任何练习", provider_name);
+        return;
+    }
+
+    auto state   = session::StateStore(state_path());
+    auto session = session::Session(exercises, &state);
+    session.seek_start(start_target);
+    session.enter_current();
 
     auto assistant = d2x::Assistant();
 
-    for (std::size_t idx = start_idx; idx < targets.size(); ++idx) {
-        const auto& target = targets[idx];
-        //log::info("Checking target: {}", target);
-        
-        bool build_success { false };
-        bool status { false };
-        auto output = std::string { };
-        bool open_target_file { false };
+    while (!session.done()) {
+        const auto& exercise = session.current();
 
-        auto files = btools.get_files_for(target);
-        // read original code from files[0]
-        auto original_code = utils::read_file_to_string(files[0]);
+        bool opened_editor = false;
 
-        assistant.set_original_code(original_code);
+        for (;;) {
+            // 每次重试都重读源码：学员刚改过，AI 助手要看到最新版本
+            auto source = utils::read_file_to_string(exercise.files.front());
+            assistant.set_original_code(source);
 
-        while (!build_success) {
+            // 边跑边显示。旧实现读到 EOF 才刷新，编译期间全程黑屏。
+            std::string streamed;
+            auto progress = provider::Progress{
+                .on_stage  = [&](std::string_view stage) {
+                    ui::update_checker_page(
+                        exercise.id, exercise.files,
+                        static_cast<int>(session.completed_count()),
+                        static_cast<int>(session.total()),
+                        std::format("[{}]\n{}", stage, streamed),
+                        false, "");
+                },
+                .on_output = [&](std::string_view chunk) {
+                    streamed += chunk;
+                },
+            };
 
-            std::tie(build_success, output) = build_with_error_handling(btools, target);
+            auto verdict = provider.check(exercise, progress);
 
-            if (build_success) {
-                std::tie(build_success, output) = run_with_error_handling(btools, target);
+            if (verdict.outcome == Outcome::Pass) {
+                ui::update_checker_page(
+                    exercise.id, exercise.files,
+                    static_cast<int>(session.completed_count()) + 1,
+                    static_cast<int>(session.total()),
+                    verdict.output, true, "");
+                break;
             }
 
-            status = build_success;
-
-            if (!output.empty()) {
-                if (output.find("❌") != std::string::npos) {
-                    status = false;
-                    build_success = false;
-                } else if (output.find(D2X_WAIT) != std::string::npos) {
-                    build_success = false;
-                }
+            // Blocked 与 Fail 的区别只在提示语：前者代码已对、只差拆路障，
+            // 两者都不推进，都等学员改文件。
+            if (!opened_editor) {
+                for (const auto& file : exercise.files) editor::open(file);
+                opened_editor = true;
             }
 
-            if (build_success) {
-                built_targets += 1;
-            } else if (!open_target_file) {
-                // Open file in editor on first failure
-                for (const auto& file : files) {
-                    editor::open(file);
-                }
-                open_target_file = true;
-            }
-
-            // ask ai assistant for tips
-            // ask ai assistant for tips
-            auto ecode = utils::read_file_to_string(files[0]);
-            //auto ai_tips = assistant.ask(ecode, output);
-            auto ai_tips = assistant.ask(ecode, output);
+            auto tips = assistant.ask(source, verdict.output);
 
             ui::update_checker_page(
-                target, files,
-                built_targets, total_targets,
-                output, status,
-                ai_tips
-            );
+                exercise.id, exercise.files,
+                static_cast<int>(session.completed_count()),
+                static_cast<int>(session.total()),
+                verdict.output,
+                verdict.outcome == Outcome::Blocked,
+                tips);
 
-            if (!build_success) {
-                utils::wait_files_changed(files, 20 * 1000);
-                // wait user action to change files to avoid shaking
-                while (utils::wait_files_changed(files, 1 * 1000));
-            }
+            utils::wait_files_changed(exercise.files, kIdlePollMs);
+            // 合并连续保存，避免编辑器一次保存触发多轮重建
+            while (utils::wait_files_changed(exercise.files, kSettleMs));
         }
+
+        session.complete_current();
     }
 
-    log::info("Checker finished.");
+    log::info("全部练习已完成 🎉");
 }
 
 } // namespace checker
