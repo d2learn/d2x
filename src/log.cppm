@@ -1,7 +1,18 @@
+module;
+
+#include <cstdio>   // stderr
+
 export module d2x.log;
 
 import std;
 import d2x.platform;
+
+// 日志是否改走 stderr。
+//
+// --emit-events 模式下 stdout 是协议流，任何非 JSON 行都是污染。前端虽然
+// 会忽略解析不了的行，但让协议流保持纯净才是对的：外部客户端可以直接
+// 逐行 JSON.parse，不必先过滤噪声。
+bool g_log_to_stderr = false;
 
 template<typename... Args>
 void log_print(const std::string& level, const std::string& color, std::format_string<Args...> fmt, Args&&... args) {
@@ -20,11 +31,15 @@ void log_print(const std::string& level, const std::string& color, std::format_s
         level,
         message);
     
-    d2x::platform::println(log_line);
+    if (g_log_to_stderr) std::println(stderr, "{}", log_line);
+    else                 d2x::platform::println(log_line);
 }
 
 namespace d2x {
 export namespace log {
+
+// 把日志改道到 stderr，让 stdout 只剩协议事件
+inline void to_stderr(bool on) { ::g_log_to_stderr = on; }
 
 // C++23 std::println + 变参模板
 

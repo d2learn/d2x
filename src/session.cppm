@@ -118,9 +118,35 @@ public:
     void complete_current() {
         if (done()) return;
         if (mState) mState->mark_completed(current().id);
-        ++mIndex;
+        advance_to_next_incomplete();
         enter_current();
     }
+
+private:
+    bool incomplete(const Exercise& e) const {
+        return !mState || !mState->is_completed(e.id);
+    }
+
+    // 推进到下一道未完成的练习：先向后找，找不到再从头绕一圈。
+    //
+    // 为什么要绕回去：起点优先级是「持久化 current > 第一个未完成」，
+    // 这是对的 —— 学员主动跳级后重启不该被硬拉回开头。但副作用是，
+    // 课程作者在学员当前位置之前插入新练习时，那道题会被静默跳过。
+    // 绕一圈保证「学员不会被打断，也不会丢内容」。
+    //
+    // 向后找时跳过已完成的：学员重玩时不必把做过的题再验一遍，
+    // 这与 seek_start 的行为一致。
+    void advance_to_next_incomplete() {
+        for (std::size_t i = mIndex + 1; i < mExercises.size(); ++i) {
+            if (incomplete(mExercises[i])) { mIndex = i; return; }
+        }
+        for (std::size_t i = 0; i <= mIndex && i < mExercises.size(); ++i) {
+            if (incomplete(mExercises[i])) { mIndex = i; return; }
+        }
+        mIndex = mExercises.size();   // 全部完成
+    }
+
+public:
 };
 
 } // namespace d2x::session

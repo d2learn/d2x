@@ -72,6 +72,9 @@ export int run(int argc, char* argv[]) {
         .option("llm-prompt").takes_value().global().help("set LLM system prompt")
         .option("llm-api-key").takes_value().global().help("set LLM API key")
         .option("llm-api-url").takes_value().global().help("set LLM API URL")
+        // 让外部前端（VSCode 插件 / Web / CI）直接消费上行事件流，
+        // 不必链接 d2x，也不必解析 TUI 的转义序列。
+        .option("emit-events").global().help("emit the frontend protocol as NDJSON on stdout")
         .subcommand("new")
             .description("create new d2x project from template")
             .arg("project-name").help("project name")
@@ -108,10 +111,10 @@ export int run(int argc, char* argv[]) {
             })
         .subcommand("checker")
             .description("run checker for d2x project's exercises")
-            .arg("target").help("target name")
+            .arg("target").help("exercise name (substring match)")
             .action([](const cmdline::ParsedArgs& a) {
                 apply_global_options(a);
-                checker::run(std::string(a.positional_or(0, "")));
+                checker::run(std::string(a.positional_or(0, "")), a.is_flag_set("emit-events"));
             })
         .subcommand("config")
             .description("configure d2x (.d2x.json)")

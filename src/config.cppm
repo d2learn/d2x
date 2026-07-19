@@ -67,7 +67,10 @@ public:
         static constexpr std::string_view DEFAULT_UI_BACKEND = "tui";
         static constexpr std::string_view DEFAULT_LANG = "en";
         static constexpr std::string_view DEFAULT_MODEL = "deepseek-chat";
-        static constexpr std::string_view DEFAULT_BUILDTOOLS = "xmake d2x-buildtools";
+        // 没有通用默认值：Provider 是课程特有的，由课程仓库在 .d2x.json 里
+        // 声明。旧的 "xmake d2x-buildtools" 默认值已随 xmake 退役失效 ——
+        // 留着会让未配置的仓库拿到一个必定失败的命令，而报错还指向 xmake。
+        static constexpr std::string_view DEFAULT_BUILDTOOLS = "";
     };
 
 private:

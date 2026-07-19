@@ -56,6 +56,28 @@ std::optional<nlohmann::json> parse_event(std::string_view line) {
     return parsed;
 }
 
+// 练习 id 来自课程仓库的文件名，最终会拼进一条 shell 命令。带空格、引号
+// 或 `;` 的文件名会让命令断开甚至注入。这里做单引号包裹（POSIX 语义：
+// 单引号内除自身外一切字面化），内部单引号用 '\'' 转义。
+//
+// Windows 的 cmd.exe 不认单引号，但 d2x 走 _popen 时命令实际交给 cmd /c；
+// 那里用双引号包裹，且不存在 '\'' 这种拼接技巧 —— 所以退而求其次：拒绝
+// 含引号的 id，其余用双引号包裹。这类 id 本就不该出现在课程里。
+std::string shell_quote(std::string_view s) {
+#ifdef _WIN32
+    if (s.find('"') != std::string_view::npos) return {};   // 调用方视作非法
+    return std::format("\"{}\"", s);
+#else
+    std::string out = "'";
+    for (char c : s) {
+        if (c == '\'') out += "'\\''";
+        else           out += c;
+    }
+    out += "'";
+    return out;
+#endif
+}
+
 // 以子进程形式驱动 Provider。命令来自配置，参数走 argv。
 export class ProcessProvider final : public IExerciseProvider {
     std::string mCommand;
@@ -122,7 +144,16 @@ public:
         bool got_verdict = false;
         std::string collected;
 
-        invoke(std::format("check {}", ex.id), [&](const nlohmann::json& ev) {
+        auto quoted = shell_quote(ex.id);
+        if (quoted.empty()) {
+            verdict.outcome = Outcome::Fail;
+            verdict.output  = std::format(
+                "exercise id '{}' contains characters that cannot be passed safely to the provider",
+                ex.id);
+            return verdict;
+        }
+
+        invoke(std::format("check {}", quoted), [&](const nlohmann::json& ev) {
             auto kind = ev.value("event", "");
 
             if (kind == "stage") {
