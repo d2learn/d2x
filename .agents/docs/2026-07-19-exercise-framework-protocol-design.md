@@ -367,3 +367,62 @@ spawn 嵌套的 `mcpp`（另一个二进制）时被迫加载错配的 glibc，�
 - **前端仍是编译期插件。** 上行 Frontend Protocol 已在设计中定稿，但内置 TUI/print 尚未改造成协议客户端，目前仍直接调 `ui::update_checker_page`。
 - **文件监听未改造。** 仍是 `utils::wait_files_changed` 轮询 mtime，去抖与自触发保护还没做。
 - **`04-rvalue-references` 的教学漂移未处理。** 见第 8 节。
+
+---
+
+## 12. 第二轮：功能补齐与缺陷修复（2026-07-20）
+
+### 补齐的功能
+
+| 功能 | 位置 | 说明 |
+|---|---|---|
+| 上行 Frontend Protocol | `d2x/src/emit.cppm` | 单向 NDJSON。内置 TUI 走 `UiSink`（内存通道），外部客户端走 `StdoutSink`（管道），同一套事件类型。`--emit-events` 启用 |
+| 文件监听 | `d2x/src/watch.cppm` | 按文件记 mtime+size、内置安静期去抖、`resync()` 自触发保护 |
+| session 单测 | `d2x/tests/session_test.cpp` | 28 个断言，无 IO 覆盖完整学习流程 |
+| 教学漂移修复 | `dslings/**/04-rvalue-references.cpp` | 改用具名对象 `std::move`，并加断言钉住 |
+
+原先的监听实现「把所有文件 mtime 相加再比总和」有三个问题：求和会抵消（两文件一增一减则漏检）；无去抖（编辑器多次写入会读到半截文件）；去抖手写在调用方。
+
+### 单测立刻抓到的设计缺陷
+
+起点优先级是「显式指定 > 持久化 current > 第一个未完成」。这条本身是对的——学员主动跳级后重启不该被硬拉回开头。但副作用是：**课程作者在学员当前位置之前插入新练习，那道题会被永久静默跳过**。
+
+修法不是回退优先级，而是让推进逻辑走到末尾时绕回去回收遗漏的练习（`Session::advance_to_next_incomplete`）。学员不被打断，内容也不丢。
+
+### 对抗性审查发现的三个真缺陷
+
+**1. 练习 id 注入（严重）。** id 直接取自文件名，有两个危险去向：d2x 把它拼进 shell 命令交给 `popen`，Provider 把它写进生成的 TOML（`[targets.<id>]`）。带反引号、`]` 或引号的文件名在任一处都能越界——对社区课程仓库而言，一个恶意 PR 文件名就足以在任何跑 checker 的人机器上执行命令。
+
+在 `discovery.cppm` 源头做白名单校验并**拒绝**，而不是在两个下游各自转义；d2x 侧同时加 shell 引用做纵深防御。实测 `` 99-evil`touch pwned_marker`.cpp `` 被拒绝、命令未执行。
+
+**2. `e2e.sh` 把所有英文参考答案静默 SKIP。** 前缀剥离顺序错了——`${sol#en/}` 执行时 `sol` 已经以 `solutions/` 开头，匹配不到任何东西，是个静默 no-op。
+
+**这正是本脚本存在的理由所要防的那种空转，和旧 CI 一模一样的毛病。** 除修顺序外另加防线：`pass == 0` 直接判失败，杜绝「0 失败」蒙混。修复后 en 也是 51/51 真验证（此前 0 通过 / 52 跳过）。
+
+**3. `d2x_assert_eq` 的日志分支仍用裸 `std::to_string`**，而上报分支已改用 SFINAE 安全的 `show()`。`std::to_string` 没有 `std::string` / `const char*` / scoped enum 的重载——下一个比较字符串或强类型枚举的练习会直接编译失败。`show()` 存在的意义就是避免这个，却只用了一半。
+
+### 其他修复
+
+- `DEFAULT_BUILDTOOLS` 从 `"xmake d2x-buildtools"` 改为空。xmake 已退役，留着会让未配置的仓库拿到必定失败的命令，报错还指向 xmake。
+- `read_source` 包住读文件异常。原先无保护，练习文件读不到就整个会话崩。
+- `--emit-events` 模式下日志改道 stderr。实测修复前有 5 行日志混进事件流。
+- `e2e.sh` 增加脏树前置检查。该脚本会把参考答案覆盖到练习上再还原，天然会吃掉练习目录里未提交的改动——**这个陷阱咬过两次**（一次丢了脚手架，一次丢了刚修好的练习）。现在不干净就拒绝运行并列出文件。
+
+### 当前验证状态
+
+| 项 | 结果 |
+|---|---|
+| d2x session 单测 | 28/28 |
+| Provider 端到端（zh） | 51/51 参考答案通过 |
+| Provider 端到端（en） | 51/51 参考答案通过 |
+| TUI 全链路 | 正常，进度 0/52，健康挂起 |
+| 事件流全链路 | 12 行 JSON，**0 行污染** |
+| 注入防护 | 恶意文件名被拒绝，命令未执行 |
+
+### 仍然欠着的
+
+- **macOS / Windows 从未验证。** Windows 尤其存疑：`_popen`、`_putenv_s`、`unsetenv` 的 `#ifdef` 分支、`shell_quote` 的 cmd.exe 分支，全是纸面推断。
+- **新 CI 从未真跑过。** workflow 是手写的，`xlings install -y` 在 CI 环境能否装上 mcpp 未验证。
+- **`--ui print` 参数不生效**——`.d2x.json` 的 `ui_backend` 覆盖了 CLI 参数（d2x 既有问题）。因此 print 后端路径未被真正验证。
+- **`diagnostics` 只在断言失败时产出**，编译错误尚未解析成结构化诊断（需要 `-fdiagnostics-format=json` 或解析编译器输出）。
+- **模块化练习的填空占位符没有约定。** `D2X_YOUR_ANSWER` 是宏，无法跨模块导出；cpp20/cpp23 章节需要另设方案。
