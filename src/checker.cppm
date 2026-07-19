@@ -27,9 +27,13 @@ namespace checker {
 
 using domain::Outcome;
 
-// 学员多久没动文件就重新跑一轮（毫秒）。即使没有编辑也定期重试，
-// 这样外部因素（依赖装好了、磁盘腾出空间了）不至于让人卡死。
-constexpr int kIdlePollMs = 20 * 1000;
+// 等待学员编辑时的单次轮询窗口（毫秒）。
+//
+// 注意这不是「重试间隔」：窗口到期后只是再等一轮，绝不会重新构建。
+// 检查必须由文件变更驱动 —— 早先的实现在窗口到期后无条件重跑一次，
+// 结果 TUI 每 20 秒自己刷一屏、白白重编一遍，学员什么都没做却看到
+// 界面在动，误以为是自己触发的。
+constexpr int kWaitWindowMs = 20 * 1000;
 
 std::filesystem::path state_path() {
     return std::filesystem::path(platform::get_rundir()) / ".d2x" / "state.json";
@@ -49,6 +53,11 @@ std::string read_source(const std::vector<std::string>& files) {
 
 export void run(const std::string& start_target = "", bool emit_events = false) {
 
+    // 先改道再做任何事：早退路径上的错误日志同样不能落进协议流。
+    // （曾经这行在 buildtools 检查之后，于是配置缺失时两行报错直接
+    //  打进了 stdout，外部客户端拿到的第一样东西就是非 JSON。）
+    if (emit_events) log::to_stderr(true);
+
     auto command = Config::buildtools();
     if (command.empty()) {
         log::error("未配置 buildtools —— 请在 .d2x.json 里指定 Provider 命令");
@@ -58,14 +67,8 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
 
     // 内置前端走内存通道，外部客户端走管道，二者消费同一套事件类型。
     std::unique_ptr<emit::IEventSink> sink;
-    if (emit_events) {
-        // stdout 交给协议流，日志改道 stderr —— 外部客户端就能直接
-        // 逐行 JSON.parse，不必先过滤噪声。
-        log::to_stderr(true);
-        sink = std::make_unique<emit::StdoutSink>();
-    } else {
-        sink = std::make_unique<emit::UiSink>();
-    }
+    if (emit_events) sink = std::make_unique<emit::StdoutSink>();
+    else             sink = std::make_unique<emit::UiSink>();
 
     auto provider = provider::ProcessProvider(command);
 
@@ -122,7 +125,9 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
 
             // Blocked 与 Fail 都不推进、都等学员改文件；区别只在前端怎么呈现，
             // 而那已经由 verdict 事件里的 outcome 表达了。
-            if (!opened_editor) {
+            // --emit-events 模式下不碰编辑器：外部前端已经从事件流里拿到
+            // 了 exercise 和 verdict，开不开、怎么开是它的决定。
+            if (!opened_editor && !emit_events) {
                 for (const auto& file : exercise.files) editor::open(file);
                 opened_editor = true;
             }
@@ -134,7 +139,11 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
             // 落盘都会被当成学员的编辑（自触发保护）。去抖在 FileWatcher
             // 内部完成，调用方不再需要连着调两次。
             watcher.resync();
-            watcher.wait_for_change(std::chrono::milliseconds{kIdlePollMs});
+
+            // 一直等到文件真的变了才重跑。学员没动手时界面必须是静止的。
+            while (!watcher.wait_for_change(std::chrono::milliseconds{kWaitWindowMs})) {
+                // 窗口到期只是继续等，不重新构建、不刷新界面
+            }
         }
 
         session.complete_current();
