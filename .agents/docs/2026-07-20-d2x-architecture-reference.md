@@ -219,11 +219,11 @@ src/config.cppm     配置加载与优先级
 | 缺口 | 影响 |
 |---|---|
 | **macOS / Windows 从未验证** | Windows 尤其存疑：`_popen`、`_putenv_s`、`shell_quote` 的 cmd.exe 分支全是纸面推断 |
-| **`provider/` 层无单测** | 只有 session 层有。NDJSON 解析的容错（畸形行、缺 verdict、输出截断）未被自动化覆盖 |
+| ~~`provider/` 层无单测~~ | **已覆盖(2026-07-24)**:fake-provider conformance e2e(`tests/e2e.sh`)覆盖畸形行/缺 verdict/describe 失败/超时/锁/flush;协议能力已析出 `d2x.protocol`(protocol/ workspace 成员) |
 | **`emit` / `watch` 层无单测** | 同上 |
 | **`diagnostics` 只覆盖运行期断言** | 编译错误尚未解析成结构化诊断，需要 `-fdiagnostics-format=json` 或解析编译器输出 |
 | **前端仍是编译期插件** | `IUIBackend` + `UILoader` 尚未真正改造成协议客户端，`UiSink` 是适配层而非重构 |
-| **Provider 无超时上限** | Provider 挂死会让 checker 一起挂住 |
+| ~~Provider 无超时上限~~ | **已修(2026-07-24)**:活性超时住 `d2x.protocol.transport`,默认 120s 无输出即终止,可配 `provider_idle_timeout` |
 | **多文件练习支持不完整** | `Exercise.files` 是数组，但 AI 助手只读 `files.front()` |
 
 ---
@@ -233,3 +233,19 @@ src/config.cppm     配置加载与优先级
 - 决策过程与替代方案对比：`2026-07-19-exercise-framework-protocol-design.md`
 - xmake → mcpp 的调研（含 rustlings/cargo 横向对照）：d2mcpp 仓库 `.agents/docs/2026-07-19-mcpp-replace-xmake-research.md`
 - Provider 实现范例：d2mcpp 仓库 `.agents/docs/2026-07-20-mcpp-provider-reference.md`
+
+
+---
+
+## 11. 2026-07-24 批次更新摘要
+
+- **协议层分库**:types/codec/transport 析出为 `protocol/` 成员(模块 `d2x.protocol.*`),
+  core 经兼容壳(`d2x.domain`/`d2x.provider`)零改动消费;规范性载体仍是本文协议章节,
+  conformance 判据是 `tests/fake_provider.sh` + `tests/e2e.sh`。
+- 新增:活性超时、checker 单实例锁(`.d2x/checker.lock`)、进度文件原子写入+损坏备份、
+  `d2x status` 只读总览、消息目录 i18n(zh/en)。
+- xlings 依赖策略反转:缺失即报错+分平台安装命令,删除代装链路。
+- UI 词汇修正:`UIState` 与页面全面改用 exercise(旧 target 字段随 UI 接口退役);
+  print 页面固定分区,诊断置顶,长输出截断+`.d2x/last-output.log` 全量落盘。
+- 版本切换日期制:`2026.07.24.1` 起。
+设计与决策:`2026-07-24-d2x-stability-usability-design.md`。
