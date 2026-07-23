@@ -3,6 +3,11 @@
 // 这一层是纯逻辑——不碰构建工具、不碰终端、不碰文件监听。给它一个假
 // Provider 和一份内存状态就能测完整流程。旧实现把这些逻辑埋在
 // checker::run() 的 100 行循环里，一行都测不了。
+module;
+
+// stderr 是宏,import std 不提供
+#include <cstdio>
+
 export module d2x.session;
 
 import std;
@@ -31,7 +36,21 @@ public:
         std::ifstream in(mPath);
         if (!in) return;
         auto parsed = nlohmann::json::parse(in, nullptr, /*allow_exceptions=*/false);
-        if (parsed.is_discarded() || !parsed.is_object()) return;
+        if (parsed.is_discarded() || !parsed.is_object()) {
+            // 损坏的进度文件不能静默清零(学习者会无感知地丢档):改名备份、
+            // 明确告知,再从空白继续。备份带时间戳,反复损坏也不互相覆盖。
+            in.close();
+            auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            auto backup = mPath;
+            backup += std::format(".corrupt-{}", ts);
+            std::error_code ec;
+            std::filesystem::rename(mPath, backup, ec);
+            std::println(stderr,
+                "warning: 进度文件损坏,已备份为 {} 并从空白进度继续",
+                backup.string());
+            return;
+        }
 
         mCurrent = parsed.value("current", "");
         if (parsed.contains("completed") && parsed["completed"].is_array()) {
