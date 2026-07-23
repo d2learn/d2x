@@ -17,7 +17,7 @@ export struct EnvVars;
 export class Config;
 
 struct Info {
-    static constexpr std::string_view VERSION = "0.1.5";
+    static constexpr std::string_view VERSION = "2026.07.24.1";   // 日期版本制 YYYY.MM.DD.N(见 2026-07-24 设计文档决策记录)
     static constexpr std::string_view REPO = "https://github.com/d2learn/d2x";
 };
 

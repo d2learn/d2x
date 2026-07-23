@@ -1,6 +1,6 @@
 [package]
 name        = "d2x"
-version     = "0.1.5"
+version     = "2026.07.24.1"
 description = "AI-powered development assistant for C++ projects"
 license     = "Apache-2.0"
 repo        = "https://github.com/d2learn/d2x"
