@@ -1,116 +1,53 @@
-# d2x - [xlings](https://github.com/d2learn/xlings)
+# d2x
 
-> 一个交互式教程项目搭建工具 - `Book + Video + Code + X`
+> Exercise-driven learning framework — turn any course into a game of `edit → save → auto-check → advance`
 
-[![xlings](https://img.shields.io/badge/C++-23-orange.svg)](https://github.com/d2learn/xlings)
-[![xlings](https://img.shields.io/badge/xlings-ok-green.svg)](https://github.com/d2learn/xlings)
+**English** | [简体中文](README.zh-CN.md)
+
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-orange.svg)](https://en.cppreference.com/w/cpp/23)
+[![xlings](https://img.shields.io/badge/xlings-ok-green.svg)](https://github.com/openxlings/xlings)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE-CODE)
 
-| [xlings工具](https://github.com/d2learn/xlings) - [论坛](https://forum.d2learn.org) - [项目模板及说明](https://d2learn.github.io/d2x-project-template) - [d2x类项目索引仓库](https://github.com/d2learn/xim-pkgindex-d2x) |
-| --- |
+d2x owns the learning loop — session progress, file watching, auto-advance — and nothing else.
+Courses plug in underneath through a small NDJSON **Provider protocol**; frontends consume a
+one-way event stream on top. It doesn't know C++, build tools, or how to compile anything.
 
-```cpp
-d2x version: 0.1.5
-
-Usage: $ d2x [command] [target] [options]
-
-Commands:
-         new            create new d2x project from template
-         install        install d2x package via xlings
-         book           open project's book
-         checker        run checker for d2x project's exercises
-         config         configure d2x (.d2x.json)
-         list           list available d2x packages
-```
-
-## 功能特色
-
-- 使用C++23模块化实现
-- 支持一键创建交互式教程项目(模板)
-- 支持书籍目录和本地预览
-- 支持一键获取d2x类项目和包管理
-- 支持交互式的实时代码练习及自动检测验证
-- 支持AI智能学习引导, 并可以自定义后端大模型
-
-## 快速开始
-
-<details>
-  <summary>点击查看xlings安装命令</summary>
-
----
-
-#### Linux/MacOS
+## Quick start
 
 ```bash
-curl -fsSL https://d2learn.org/xlings-install.sh | bash
+xlings install d2x -y        # install d2x (needs xlings: https://xlings.d2learn.org)
+d2x install d2mcpp           # grab a course, environment auto-configured
+cd d2mcpp && d2x checker     # start learning — edit, save, it re-checks and advances
 ```
 
-#### Windows - PowerShell
+## Commands
 
-```bash
-irm https://d2learn.org/xlings-install.ps1.txt | iex
-```
+| Command | What it does |
+|---|---|
+| `d2x checker [name]` | interactive practice loop (substring match to jump to an exercise) |
+| `d2x status` | read-only progress overview, grouped by chapter |
+| `d2x install <pkg>` | fetch a course from the [d2x index](https://github.com/d2learn/xim-pkgindex-d2x) |
+| `d2x book` | preview the course's book locally |
+| `d2x new <name>` | scaffold a new course from the [template](https://d2learn.github.io/d2x-project-template) |
+| `d2x config` | interactive `.d2x.json` configuration (language, UI, editor, LLM) |
+| `d2x list [query]` | search available courses |
 
-> tips: xlings -> [details](https://xlings.d2learn.org)
+Useful flags: `--lang zh|en`, `--ui tui|print`, `--emit-events` (NDJSON stream for external frontends).
 
----
+## For course authors
 
-</details>
+A course is a repository with a `.d2x.json` declaring one command — the **Provider** — that
+answers three verbs: `describe`, `exercises`, `check <id>`. Any language works; the reference
+implementation and conformance suite live in [`protocol/`](protocol/) and [`tests/`](tests/).
+See the [architecture reference](.agents/docs/2026-07-20-d2x-architecture-reference.md).
 
-**安装**
+## Courses built with d2x
 
-> 通过xlings包管理器安装d2x工具
+| Course | About |
+|---|---|
+| [d2mcpp](https://github.com/mcpp-community/d2mcpp) | Modern C++ core language features, exercises-as-tests |
+| [d2ds](https://github.com/d2learn/d2ds) | Hands-on data structures |
 
-```
-xlings install d2x
-```
+## Links
 
-**创建交互式教程**
-
-> new命令可以快速创建一个基础的交互教程项目
-
-```
-d2x new hello
-```
-
-- 注: [交互式教程项目及说明文档](https://d2learn.github.io/d2x-project-template)
-
-**一键获取教程**
-
-> d2x可以通过install命令一键安装被收录在 [`d2x类项目索引仓库`](https://github.com/d2learn/xim-pkgindex-d2x) 中的教程项目, 并能自动配置好本地环境
-
-```
-d2x install d2mcpp
-```
-
-**教程书籍**
-
-> 在一个d2x类教程项目中, 可以通过book命令本地预览教程的电子书
-
-```
-d2x book
-```
-
-**交互式代码练习**
-
-> 在一个d2x类教程项目中, 可以通过checker进入代码练习模式
-
-```
-d2x checker
-```
-
-注: 可以使用`d2x checker [target_name]`直接从指定target开始检测, 且`target_name`支持字符串匹配
-
-## 项目案例
-
-| 项目 | 简介 | 备注 |
-| --- | --- | --- |
-| [d2mcpp](https://github.com/mcpp-community/d2mcpp) | 现代C++核心特性入门教程 | |
-| [d2ds](https://github.com/d2learn/d2ds) | 强调动手实践的数据结构学习项目 | |
-
-## 其他
-
-- [d2x类项目索引仓库](https://github.com/d2learn/xim-pkgindex-d2x)
-- [d2x项目模板](https://github.com/d2learn/d2x-project-template)
-- [论坛交流和反馈](https://forum.d2learn.org)
-- `交流群`: 167535744
+[Forum](https://forum.d2learn.org) · [Course index](https://github.com/d2learn/xim-pkgindex-d2x) · [Project template](https://d2learn.github.io/d2x-project-template) · [xlings](https://github.com/openxlings/xlings)
