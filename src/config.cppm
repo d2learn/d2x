@@ -66,6 +66,7 @@ public:
         std::string buildtools;
         std::string editor;
         bool        editor_is_set{false};   // 区分「未配置」与「显式配成空串（=关闭）」
+        int         provider_idle_timeout{120};   // 秒;<=0 关闭活性超时
         LLMConfig llm;
 
         // Defaults
@@ -115,6 +116,11 @@ private:
         override_from_env(mData.lang,              EnvVars::D2X_LANG);
         override_from_env(mData.ui_backend,        EnvVars::D2X_UI_BACKEND);
         override_from_env(mData.buildtools,        EnvVars::D2X_BUILDTOOLS);
+        if (auto v = utils::get_env_or_default("D2X_PROVIDER_IDLE_TIMEOUT"); !v.empty()) {
+            int secs{};
+            auto [_, ec] = std::from_chars(v.data(), v.data() + v.size(), secs);
+            if (ec == std::errc{}) mData.provider_idle_timeout = secs;
+        }
         if (auto v = utils::get_env_or_default(EnvVars::D2X_EDITOR); !v.empty()) {
             mData.editor = v;
             mData.editor_is_set = true;
@@ -133,6 +139,7 @@ private:
             mData.lang = json.value("lang", "");
             mData.ui_backend = json.value("ui_backend", "");
             mData.buildtools = json.value("buildtools", "");
+            mData.provider_idle_timeout = json.value("provider_idle_timeout", 120);
             if (json.contains("editor")) {
                 mData.editor = json.value("editor", "");
                 mData.editor_is_set = true;
@@ -200,6 +207,7 @@ public:
 
     // BuildTools getter
     [[nodiscard]] static const std::string& buildtools() { return instance().mData.buildtools; }
+    [[nodiscard]] static int provider_idle_timeout() { return instance().mData.provider_idle_timeout; }
     [[nodiscard]] static const std::string& editor() { return instance().mData.editor; }
     [[nodiscard]] static bool editor_is_set() { return instance().mData.editor_is_set; }
 

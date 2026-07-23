@@ -70,7 +70,11 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
     if (emit_events) sink = std::make_unique<emit::StdoutSink>();
     else             sink = std::make_unique<emit::UiSink>();
 
-    auto provider = provider::ProcessProvider(command);
+    // 活性超时与告警回调经此接入协议层——core 负责配置与日志,机制在 transport。
+    auto provider = provider::ProcessProvider(command, provider::TransportOptions{
+        .idle_timeout = std::chrono::seconds(Config::provider_idle_timeout()),
+        .on_warning   = [](std::string msg) { log::warning("{}", msg); },
+    });
 
     // Provider 起不来是致命错误，且必须说清楚是「Provider 挂了」而不是
     // 「没有练习」。旧实现先打 "Failed to load targets with exit code"
