@@ -46,7 +46,38 @@
 
 ## 3. 设计方案
 
-### D1 Provider 活性超时（治 S1）
+### D0 协议层分库：`d2x.protocol`（架构主线，按 review 意见确立）
+
+把「与真实练习项目对接」的协议能力从 d2x core 中析出为独立库（先做
+d2x 仓库内的 mcpp workspace 成员 `protocol/`，模块名 `d2x.protocol`，
+成熟后可独立发布），d2x core 只消费**标准化的数据与状态**：
+
+```
+┌ d2x core        学习循环 · 会话进度 · 文件监听 · 前端编排(它独有的东西)
+├ d2x.protocol    ── 本次析出 ──
+│   types         Exercise / Verdict / Outcome / Diagnostic / 事件类型(上行+下行)
+│   codec         NDJSON 编码(emit 端)与解码(parse 端),转义、容错(畸形行忽略)
+│   transport     ProcessProvider:spawn / shell-quote / **活性超时(D1 落在这里)**
+│   conformance   假 Provider + 协议一致性测试套件(**D7 落在这里**)
+└ 课程侧          d2mcpp buildtools(可复用 codec 的 emit 端) / 任意语言自行实现
+```
+
+三条边界纪律：
+
+1. **规范性载体仍是协议文档（schema），库只是参考实现**。Provider 可以用
+   任何语言实现协议，绝不允许出现"想接入必须链接这个 C++ 库"的事实标准——
+   conformance 测试套件（可执行的假 Provider + 校验器）才是跨语言的合规判据。
+2. **状态的归属划清**：pass/fail/blocked 三态、诊断、事件流是**协议数据**，
+   进 `d2x.protocol`；学习进度（state.json、completed/current、推进规则）
+   是**学习循环状态**，留在 d2x core 的 session——协议层无进度概念。
+3. 双向协议**字段零改动**：这是纯结构重组 + 单一真相源化。当前 d2x 的
+   parse 端与 d2mcpp 的 emit 端是两份手写实现，靠文档同步——正是 rustlings
+   PR #1355 式的双真相源风险；d2mcpp 侧接入 codec emit 端后归一。
+
+收益：D1/D7 有了正确的安家处；未来 VSCode/Web 前端消费上行事件时直接
+复用 types+codec；协议版本演进（describe.protocol）有了唯一执行点。
+
+### D1 Provider 活性超时（治 S1，落位 `d2x.protocol.transport`）
 
 固定总时长会误杀冷启动，正确模型是**活性（liveness）**：
 
@@ -64,15 +95,33 @@ verdict 缺失走既有「无 verdict = fail + 原样呈现已收输出」路径
 - `.d2x/checker.lock` 写入 pid + 启动时间；启动时读锁：进程存活（`kill(pid,0)`/Windows OpenProcess）→ 拒绝启动并提示「另一 checker (pid N) 正在运行」；进程已死 → 视为陈旧锁自动接管。
 - 正常退出与信号路径（SIGINT/SIGTERM handler）删除锁；TUI 退出路径一并审计终端状态恢复。
 
-### D3 `d2x install` 健壮化（治 S3/S5）
+### D3 xlings 依赖简化 + `d2x install` 健壮化（治 S3/S5，按 review 意见收窄）
 
+**依赖策略反转：d2x 不再保证/代装 xlings。** 默认直接使用；缺失即报错退出，
+输出分平台安装命令后由用户自行安装——删除 `ensure_xlings_installed()` 的
+交互问询与 `platform::xlings_install()` 整条代装链路：
+
+```
+error: 未检测到 xlings（d2x 的包管理依赖）
+安装后重试本命令:
+  Linux/macOS:  curl -fsSL https://d2learn.org/xlings-install.sh | bash
+  Windows:      irm https://d2learn.org/xlings-install.ps1.txt | iex
+```
+
+理由：代装是嵌套的安装器（安装器里再跑安装器），失败面大、责任边界混乱；
+一条明确的报错 + 官方命令比"帮你装"更可预期。
+
+保留的健壮化项：
 1. 包名白名单 `[A-Za-z0-9._-]`，非法即拒绝（与练习 id 同一纪律）。
-2. `ensure_xlings_installed()` 失败/拒绝 → 立即返回，不再继续。
-3. `has_xlings`：`regex_match` → `regex_search`；另以 `get_xlings_bin()` 存在性为先导判据（已有）。
-4. 命令加 `-y`；检测 `!isatty(stdin)` 时强制非交互。
-5. 失败分类：按 xlings 退出码/输出关键词给出**下一步指令**（`xlings update` / `xlings config --mirror CN` / 网络检查），而不是裸状态码。
-6. 成功后校验 `<pkg>/.d2x.json` 存在，打印「cd <pkg> && d2x checker」引导；目标目录已存在时先问覆盖/更新语义。
-7. `d2x new` 同标准对齐（模板 rename 失败时清理残留）。
+2. `has_xlings`：`regex_match` → `regex_search`（多一行 banner 不误判）；
+   以 `get_xlings_bin()` 存在性为先导判据。
+3. 命令加 `-y`。
+4. 失败分类：按退出码/输出给**下一步指令**（`xlings update` /
+   `xlings config --mirror CN`），而不是裸状态码。
+5. 成功后校验 `<pkg>/.d2x.json`，打印「cd <pkg> && d2x checker」引导；
+   目标目录已存在时明确报错（不静默覆盖）。
+6. `d2x new`/`d2x book` 同标准对齐（缺 xlings 同样报错+命令；模板 rename
+   失败清理残留）。
 
 ### D4 stdout 契约成文 + 测试（治 S4/S10）
 
@@ -120,15 +169,16 @@ Hint:     AI 提示（未启用则单行说明）
 
 | # | 项 | 治 | 验收 |
 |---|---|---|---|
+| P0 | D0 协议层析出(types/codec/transport 骨架,行为等价迁移) | 架构 | 既有 session 单测 + d2mcpp e2e 全绿(纯重组不改行为) |
 | P1 | D1 活性超时 + D2 单实例锁 | S1/S2 | fake-provider 挂死 e2e;双实例 e2e |
-| P2 | D3 install 健壮化 | S3/S5 | 非交互安装全流程;失败注入出指引文案 |
+| P2 | D3 xlings 依赖简化 + install 健壮化 | S3/S5 | 缺 xlings 报错含分平台命令;非交互全流程;失败注入出指引 |
 | P3 | D8 状态原子化 | S6/S12 | 损坏注入 e2e:进度备份+告警+可继续 |
-| P4 | D7 fake-provider 基建 | S13 | e2e 独立于 mcpp 全绿,进 CI |
+| P4 | D7 conformance 套件(住 d2x.protocol) | S13 | e2e 独立于 mcpp 全绿,进 CI;d2mcpp emit 端切换到 codec |
 | P5 | D4 stdout 契约 + 透传 | S4/S10 | 重定向断言;book 安装可见进度 |
 | P6 | D5 呈现重构 | S7/S8/S9 | 新布局截图对照;书中示例同步 |
 | P7 | D6 status 子命令 | S11 | 只读、亚秒返回 |
 
-依赖：P1 的平台层 deadline 变体是 P4 超时用例的前置；P6 会改动 d2mcpp 书中的控制台示例（跨仓库联动，放最后与 d2x 发版一起做）。
+依赖：P0 是 P1/P4 的结构前置(先安家再添能力);P1 的 deadline 变体是 P4 超时用例的前置;P6 会改动 d2mcpp 书中的控制台示例（跨仓库联动，放最后与 d2x 发版一起做）。
 
 ## 5. 兼容性与不动项
 
