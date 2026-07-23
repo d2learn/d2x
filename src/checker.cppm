@@ -16,6 +16,7 @@ import d2x.config;
 import d2x.domain;
 import d2x.provider;
 import d2x.session;
+import d2x.instance_lock;
 import d2x.emit;
 import d2x.assistant;
 import d2x.editor;
@@ -57,6 +58,16 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
     // （曾经这行在 buildtools 检查之后，于是配置缺失时两行报错直接
     //  打进了 stdout，外部客户端拿到的第一样东西就是非 JSON。）
     if (emit_events) log::to_stderr(true);
+
+    // 单实例锁:两个监听循环互踩的破坏是静默的(见 instance_lock 模块头注)。
+    auto lock_path = std::filesystem::path(platform::get_rundir()) / ".d2x" / "checker.lock";
+    if (!instance_lock::acquire(lock_path, [&](long pid) {
+            log::error("另一个 d2x checker (pid {}) 正在此仓库运行;如确认其已退出,删除 {} 后重试",
+                       pid, lock_path.string());
+        })) {
+        return;
+    }
+    struct LockGuard { ~LockGuard() { instance_lock::release(); } } lock_guard;
 
     auto command = Config::buildtools();
     if (command.empty()) {
