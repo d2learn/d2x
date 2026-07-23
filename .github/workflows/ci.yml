@@ -129,12 +129,10 @@ jobs:
           mcpp build
 
       # d2mcpp 已迁移「练习即测试」(mcpp Provider);需要 mcpp >= 0.0.104。
-      # TODO: d2mcpp PR #84 合入 main 后把 ref 切回默认分支。
       - name: Checkout d2mcpp course
         uses: actions/checkout@v4
         with:
           repository: mcpp-community/d2mcpp
-          ref: feat/mcpp-provider
           path: d2mcpp
 
       # 按课程自己的 .xlings.json 安装 mcpp——xlings 的 workspace-pin shim
