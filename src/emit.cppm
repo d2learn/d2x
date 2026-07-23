@@ -20,6 +20,7 @@ import std;
 
 import d2x.domain;
 import d2x.ui;
+import d2x.ui.interface;
 import d2x.json;
 
 namespace d2x::emit {
@@ -105,13 +106,27 @@ export class UiSink final : public IEventSink {
     std::string mStage;
     std::string mOutput;
     std::string mHint;
-    bool        mOk{false};
+    std::string mOutcome;                 // "" 检测中 | pass | fail | blocked
+    std::vector<std::string> mChecks;
+
+    static std::filesystem::path output_log_path() {
+        return std::filesystem::path(".d2x") / "last-output.log";
+    }
 
     void refresh() {
-        auto body = mStage.empty() ? mOutput
-                                   : std::format("[{}]\n{}", mStage, mOutput);
-        ui::update_checker_page(mExercise.id, mExercise.files,
-                                mCompleted, mTotal, body, mOk, mHint);
+        ICheckerPageUI::UIState st;
+        st.exercise        = mExercise.id;
+        st.chapter         = mExercise.chapter;
+        st.files           = mExercise.files;
+        st.completed       = mCompleted;
+        st.total           = mTotal;
+        st.outcome         = mOutcome;
+        st.checks          = mChecks;
+        st.output          = mStage.empty() ? mOutput
+                                            : std::format("[{}]\n{}", mStage, mOutput);
+        st.output_log_path = output_log_path().string();
+        st.hint            = mHint;
+        ui::update_checker_page(st);
     }
 
 public:
@@ -126,12 +141,13 @@ public:
         mStage.clear();
         mOutput.clear();
         mHint.clear();
-        mOk = false;
+        mOutcome.clear();
+        mChecks.clear();
     }
 
     void stage(std::string_view name) override {
         mStage.assign(name);
-        mOutput.clear();   // 新阶段开始，上一阶段的输出已经看过了
+        mOutput.clear();   // 新阶段开始,上一阶段的输出已经看过了
         refresh();
     }
 
@@ -141,12 +157,23 @@ public:
     }
 
     void verdict(const Verdict& v) override {
-        mOk = (v.outcome == Outcome::Pass);
+        mOutcome = std::string(domain::to_string(v.outcome));
+        mChecks.clear();
+        for (const auto& d : v.diagnostics) {
+            mChecks.push_back(std::format("{}:{} {}", d.file, d.line, d.message));
+        }
         mStage.clear();
+
+        // 全量输出落盘:页面可以放心截断,信息不丢。
+        std::error_code ec;
+        std::filesystem::create_directories(output_log_path().parent_path(), ec);
+        std::ofstream log(output_log_path(), std::ios::trunc);
+        if (log) log << v.output;
+
         refresh();
     }
 
-    void waiting(std::string_view) override { /* TUI 用进度条表达，无需额外动作 */ }
+    void waiting(std::string_view) override { /* TUI 用进度条表达,无需额外动作 */ }
 
     void hint(std::string_view text) override {
         mHint.assign(text);

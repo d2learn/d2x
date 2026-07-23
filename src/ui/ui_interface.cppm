@@ -59,15 +59,20 @@ public:
 // Main UI interface with multi-page support
 export class ICheckerPageUI : public IPageUI {
 public:
+    // 词汇与领域层一致:exercise,不是 target(旧字段名把构建工具词汇
+    // 固化进了接口,页面因此一直打 "Target:")。
     struct UIState : IUIState {
-        std::string target;
-        std::vector<std::string> target_files;
-        int built_targets = 0;
-        int total_targets = 0;
-        std::string output;
-        bool status = false;
-        std::string ai_tips;
-        bool only_update_ai_tips = false;
+        std::string exercise;                   // 练习 id
+        std::string chapter;
+        std::vector<std::string> files;
+        int completed = 0;
+        int total = 0;
+        std::string outcome;                    // "" 检测中 | pass | fail | blocked
+        std::vector<std::string> checks;        // 结构化诊断行(file:line message),置顶展示
+        std::string output;                     // 原始输出(页面自行截断)
+        std::string output_log_path;            // 全量输出文件(截断提示引用)
+        std::string hint;                       // AI 提示
+        bool only_update_hint = false;
     };
 public:
     virtual ~ICheckerPageUI() = default;
