@@ -128,12 +128,19 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
             assistant.set_original_code(source);
 
             // 边跑边发。旧实现读到 EOF 才刷新，编译期间全程黑屏。
+            std::size_t streamed = 0;
             auto progress = provider::Progress{
                 .on_stage  = [&](std::string_view s) { sink->stage(s); },
-                .on_output = [&](std::string_view c) { sink->output(c); },
+                .on_output = [&](std::string_view c) { streamed += c.size(); sink->output(c); },
             };
 
             auto verdict = provider.check(exercise, progress);
+            // verdict.output 里可能有传输层事后补充的说明(缺 verdict 的原因、
+            // 活性超时的终止说明)——它们没走过流式回调,不补发就永远到不了
+            // 前端/协议消费者。
+            if (verdict.output.size() > streamed) {
+                sink->output(std::string_view(verdict.output).substr(streamed));
+            }
             sink->verdict(verdict);
 
             if (verdict.outcome == Outcome::Pass) break;

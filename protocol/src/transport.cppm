@@ -198,9 +198,12 @@ public:
                 verdict.output += std::format(
                     "\n[d2x] provider produced no output for {}s and was terminated",
                     std::chrono::duration_cast<std::chrono::seconds>(mOpts.idle_timeout).count());
-            } else if (verdict.output.empty()) {
-                verdict.output = std::format(
-                    "provider did not report a verdict for '{}'", ex.id);
+            } else {
+                // 无论是否已有部分输出都要附上原因——只给「真相的前半段」
+                // 会让 fail 看起来毫无来由。
+                if (!verdict.output.empty()) verdict.output += '\n';
+                verdict.output += std::format(
+                    "[d2x] provider did not report a verdict for '{}'", ex.id);
             }
         }
         return verdict;
