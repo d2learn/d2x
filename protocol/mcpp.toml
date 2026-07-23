@@ -1,0 +1,11 @@
+[package]
+name        = "d2x-protocol"
+version     = "2026.07.24.1"
+description = "d2x Provider/Frontend 协议层:类型、编解码、传输(参考实现;规范性载体是协议文档,跨语言合规判据是 conformance 套件)"
+license     = "Apache-2.0"
+
+[build]
+include_dirs = ["src/json"]
+
+[targets.d2x-protocol]
+kind = "lib"

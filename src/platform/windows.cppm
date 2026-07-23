@@ -29,6 +29,29 @@ namespace platform_impl {
         return {code, output};
     }
 
+    // 流式逐行读，见 linux 分区的说明。_pclose 直接给退出码，无需 wait status 解码。
+    export int run_command_lines(const std::string& cmd,
+                                 const std::function<void(std::string_view)>& on_line) {
+        std::string full = cmd + " 2>&1";
+        FILE* pipe = _popen(full.c_str(), "r");
+        if (!pipe) return -1;
+
+        std::string line;
+        std::array<char, 4096> buffer{};
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+            line += buffer.data();
+            if (line.ends_with('\n')) {
+                line.pop_back();
+                if (line.ends_with('\r')) line.pop_back();
+                on_line(line);
+                line.clear();
+            }
+        }
+        if (!line.empty()) on_line(line);
+
+        return _pclose(pipe);
+    }
+
     export void clear_console() {
         // run by cmd
         std::system("cls");

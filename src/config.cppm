@@ -17,7 +17,7 @@ export struct EnvVars;
 export class Config;
 
 struct Info {
-    static constexpr std::string_view VERSION = "0.1.5";
+    static constexpr std::string_view VERSION = "2026.07.24.1";   // 日期版本制 YYYY.MM.DD.N(见 2026-07-24 设计文档决策记录)
     static constexpr std::string_view REPO = "https://github.com/d2learn/d2x";
 };
 
@@ -30,6 +30,9 @@ struct EnvVars {
 
     // BuildTools
     static constexpr std::string_view D2X_BUILDTOOLS = "D2X_BUILDTOOLS";
+
+    // 打开练习文件用的编辑器命令。空字符串 = 不自动打开。
+    static constexpr std::string_view D2X_EDITOR = "D2X_EDITOR";
 
     // LLM
     static constexpr std::string_view D2X_LLM_API_KEY = "D2X_LLM_API_KEY";
@@ -61,13 +64,19 @@ public:
         std::string lang;
         std::string ui_backend;
         std::string buildtools;
+        std::string editor;
+        bool        editor_is_set{false};   // 区分「未配置」与「显式配成空串（=关闭）」
+        int         provider_idle_timeout{120};   // 秒;<=0 关闭活性超时
         LLMConfig llm;
 
         // Defaults
         static constexpr std::string_view DEFAULT_UI_BACKEND = "tui";
         static constexpr std::string_view DEFAULT_LANG = "en";
         static constexpr std::string_view DEFAULT_MODEL = "deepseek-chat";
-        static constexpr std::string_view DEFAULT_BUILDTOOLS = "xmake d2x-buildtools";
+        // 没有通用默认值：Provider 是课程特有的，由课程仓库在 .d2x.json 里
+        // 声明。旧的 "xmake d2x-buildtools" 默认值已随 xmake 退役失效 ——
+        // 留着会让未配置的仓库拿到一个必定失败的命令，而报错还指向 xmake。
+        static constexpr std::string_view DEFAULT_BUILDTOOLS = "";
     };
 
 private:
@@ -92,14 +101,36 @@ private:
             }
         }
 
-        // Fill missing values from environment variables
-        if (mData.lang.empty()) mData.lang = utils::get_env_or_default(EnvVars::D2X_LANG);
-        if (mData.ui_backend.empty()) mData.ui_backend = utils::get_env_or_default(EnvVars::D2X_UI_BACKEND);
-        if (mData.buildtools.empty()) mData.buildtools = utils::get_env_or_default(EnvVars::D2X_BUILDTOOLS);
-        if (mData.llm.api_key.empty()) mData.llm.api_key = utils::get_env_or_default(EnvVars::D2X_LLM_API_KEY);
-        if (mData.llm.api_url.empty()) mData.llm.api_url = utils::get_env_or_default(EnvVars::D2X_LLM_API_URL);
-        if (mData.llm.model.empty()) mData.llm.model = utils::get_env_or_default(EnvVars::D2X_LLM_API_MODEL, "deepseek-chat");
-        if (mData.llm.system_prompt.empty()) mData.llm.system_prompt = utils::get_env_or_default(EnvVars::D2X_LLM_SYSTEM_PROMPT);
+        // 环境变量覆盖配置文件，而不是「只填空缺」。
+        //
+        // 命令行参数是通过写环境变量传进来的（见 cmdprocessor 的
+        // apply_global_options），所以这一步的顺序直接决定了
+        // `--ui print` 能不能压过 .d2x.json 里的 "ui_backend"。
+        // 原先是 `if (empty()) 才读 env`，于是配置文件反过来压住了命令行，
+        // --ui / --lang 这些参数看起来「没生效」。
+        //
+        // 现在的优先级：命令行 > 环境变量 > 本地配置 > 全局配置 > 默认值。
+        auto override_from_env = [](std::string& field, std::string_view name) {
+            if (auto v = utils::get_env_or_default(name); !v.empty()) field = v;
+        };
+        override_from_env(mData.lang,              EnvVars::D2X_LANG);
+        override_from_env(mData.ui_backend,        EnvVars::D2X_UI_BACKEND);
+        override_from_env(mData.buildtools,        EnvVars::D2X_BUILDTOOLS);
+        if (auto v = utils::get_env_or_default("D2X_PROVIDER_IDLE_TIMEOUT"); !v.empty()) {
+            int secs{};
+            auto [_, ec] = std::from_chars(v.data(), v.data() + v.size(), secs);
+            if (ec == std::errc{}) mData.provider_idle_timeout = secs;
+        }
+        if (auto v = utils::get_env_or_default(EnvVars::D2X_EDITOR); !v.empty()) {
+            mData.editor = v;
+            mData.editor_is_set = true;
+        }
+        override_from_env(mData.llm.api_key,       EnvVars::D2X_LLM_API_KEY);
+        override_from_env(mData.llm.api_url,       EnvVars::D2X_LLM_API_URL);
+        override_from_env(mData.llm.model,         EnvVars::D2X_LLM_API_MODEL);
+        override_from_env(mData.llm.system_prompt, EnvVars::D2X_LLM_SYSTEM_PROMPT);
+
+        if (mData.llm.model.empty()) mData.llm.model = std::string{ConfigData::DEFAULT_MODEL};
     }
 
     void load_from_file(const std::string& path) {
@@ -108,6 +139,11 @@ private:
             mData.lang = json.value("lang", "");
             mData.ui_backend = json.value("ui_backend", "");
             mData.buildtools = json.value("buildtools", "");
+            mData.provider_idle_timeout = json.value("provider_idle_timeout", 120);
+            if (json.contains("editor")) {
+                mData.editor = json.value("editor", "");
+                mData.editor_is_set = true;
+            }
 
             // Load LLM config from nested "llm" object (new format) or flat keys (legacy)
             if (json.contains("llm") && json["llm"].is_object()) {
@@ -134,6 +170,10 @@ private:
             if (mData.lang.empty()) mData.lang = json.value("lang", "");
             if (mData.ui_backend.empty()) mData.ui_backend = json.value("ui_backend", "");
             if (mData.buildtools.empty()) mData.buildtools = json.value("buildtools", "");
+            if (!mData.editor_is_set && json.contains("editor")) {
+                mData.editor = json.value("editor", "");
+                mData.editor_is_set = true;
+            }
 
             if (json.contains("llm") && json["llm"].is_object()) {
                 auto& llm = json["llm"];
@@ -167,6 +207,9 @@ public:
 
     // BuildTools getter
     [[nodiscard]] static const std::string& buildtools() { return instance().mData.buildtools; }
+    [[nodiscard]] static int provider_idle_timeout() { return instance().mData.provider_idle_timeout; }
+    [[nodiscard]] static const std::string& editor() { return instance().mData.editor; }
+    [[nodiscard]] static bool editor_is_set() { return instance().mData.editor_is_set; }
 
     // LLM getters
     [[nodiscard]] static const std::string& api_key() { return instance().mData.llm.api_key; }

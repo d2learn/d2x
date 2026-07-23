@@ -50,26 +50,14 @@ void switch_backend(std::string_view name) {
     internal::g_ui_backend->start();
 }
 
-void update_checker_page(
-    std::string target, std::vector<std::string> target_files,
-    int built_targets, int total_targets,
-    std::string output, bool status, std::string ai_tips = ""
-) {
-    auto state = ICheckerPageUI::UIState{};
-    state.target = std::move(target);
-    state.target_files = std::move(target_files);
-    state.built_targets = built_targets;
-    state.total_targets = total_targets;
-    state.output = std::move(output);
-    state.status = status;
-    state.ai_tips = std::move(ai_tips);
+void update_checker_page(const ICheckerPageUI::UIState& state) {
     internal::backend()->update_page<ICheckerPageUI>(PageID::Checker, state);
 }
 
-void update_ai_tips(std::string ai_tips) {
+void update_ai_tips(std::string hint) {
     auto state = ICheckerPageUI::UIState{};
-    state.ai_tips = std::move(ai_tips);
-    state.only_update_ai_tips = true;
+    state.hint = std::move(hint);
+    state.only_update_hint = true;
     internal::backend()->update_page<ICheckerPageUI>(PageID::Checker, state);
 }
 

@@ -2,6 +2,9 @@ module;
 
 #include <cstdio>
 #include <cstdlib>
+#if defined(__linux__)
+#include <sys/wait.h>
+#endif
 
 export module d2x.platform:linux;
 import std;
@@ -29,6 +32,35 @@ namespace platform_impl {
         int status = ::pclose(pipe);
 
         return {status, output};
+    }
+
+    // 流式逐行读。Provider 协议是 NDJSON 事件流，必须边读边处理：
+    // 学员在等编译结果，读到 EOF 才显示等于全程黑屏。
+    // 返回真实退出码（pclose 给的是 wait status，exit 1 会变成 256）。
+    export int run_command_lines(const std::string& cmd,
+                                 const std::function<void(std::string_view)>& on_line) {
+        std::string full = cmd + " 2>&1";
+        FILE* pipe = ::popen(full.c_str(), "r");
+        if (!pipe) return -1;
+
+        std::string line;
+        std::array<char, 4096> buffer{};
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+            line += buffer.data();
+            if (line.ends_with('\n')) {
+                line.pop_back();
+                if (line.ends_with('\r')) line.pop_back();
+                on_line(line);
+                line.clear();
+            }
+        }
+        if (!line.empty()) on_line(line);   // 最后一行可能没有换行符
+
+        int status = ::pclose(pipe);
+        if (status == -1) return 127;
+        if (WIFEXITED(status)) return WEXITSTATUS(status);
+        if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+        return status;
     }
 
     export void clear_console() {

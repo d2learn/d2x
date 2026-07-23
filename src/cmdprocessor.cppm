@@ -36,7 +36,7 @@ void new_project(const cmdline::ParsedArgs& args) {
         return;
     }
 
-    xlings::ensure_xlings_installed();
+    if (!xlings::require_xlings()) return;
 
     std::string cmd = "xlings install d2x:project-template -y";
     std::println("加载项目模板...");
@@ -72,6 +72,9 @@ export int run(int argc, char* argv[]) {
         .option("llm-prompt").takes_value().global().help("set LLM system prompt")
         .option("llm-api-key").takes_value().global().help("set LLM API key")
         .option("llm-api-url").takes_value().global().help("set LLM API URL")
+        // 让外部前端（VSCode 插件 / Web / CI）直接消费上行事件流，
+        // 不必链接 d2x，也不必解析 TUI 的转义序列。
+        .option("emit-events").global().help("emit the frontend protocol as NDJSON on stdout")
         .subcommand("new")
             .description("create new d2x project from template")
             .arg("project-name").help("project name")
@@ -101,17 +104,26 @@ export int run(int argc, char* argv[]) {
                 }
                 std::println("Opening book: {}", bookdir.string());
                 if (std::filesystem::exists(bookdir)) {
-                    platform::run_command_capture("xlings install mdbook -y");
+                    if (!xlings::require_xlings()) return;
+                    // 透传而非捕获:mdbook 下载可达几十秒,使用者应看到
+                    // xlings 自己的进度,而不是面对静止的终端(D4/S10)。
+                    platform::exec("xlings install mdbook -y");
                     platform::exec(("mdbook serve --open " + bookdir.string()).c_str());
                 } else
                     std::println("Error: No book found");
             })
         .subcommand("checker")
             .description("run checker for d2x project's exercises")
-            .arg("target").help("target name")
+            .arg("target").help("exercise name (substring match)")
             .action([](const cmdline::ParsedArgs& a) {
                 apply_global_options(a);
-                checker::run(std::string(a.positional_or(0, "")));
+                checker::run(std::string(a.positional_or(0, "")), a.is_flag_set("emit-events"));
+            })
+        .subcommand("status")
+            .description("show exercise progress overview (read-only)")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                checker::status(a.is_flag_set("emit-events"));
             })
         .subcommand("config")
             .description("configure d2x (.d2x.json)")

@@ -20,15 +20,15 @@ public:
         std::lock_guard lock(mMutex__);
 
         // Only update ai_tips, preserve other fields
-        if (state.only_update_ai_tips) {
-            mState__.ai_tips = state.ai_tips;
+        if (state.only_update_hint) {
+            mState__.hint = state.hint;
         } else {
             // Full state update, preserve old ai_tips if new one is empty
-            std::string old_ai_tips = std::move(mState__.ai_tips);
+            std::string old_ai_tips = std::move(mState__.hint);
             mState__ = state;
 
-            if (state.ai_tips.empty() && !old_ai_tips.empty()) {
-                mState__.ai_tips = std::move(old_ai_tips);
+            if (state.hint.empty() && !old_ai_tips.empty()) {
+                mState__.hint = std::move(old_ai_tips);
             }
         }
 
@@ -66,8 +66,8 @@ private:
         const int term_height = terminal_size.dimy > 0 ? terminal_size.dimy : 24;
 
         const int bar_width = 40;
-        const int total = mState__.total_targets;
-        const int built = mState__.built_targets;
+        const int total = mState__.total;
+        const int built = mState__.completed;
         const float ratio = total > 0 ? static_cast<float>(built) / total : 0.0f;
         const int filled = static_cast<int>(ratio * bar_width);
 
@@ -90,32 +90,47 @@ private:
             text(std::format(" {}/{} ", built, total)) | bold | color(Color::White)
         });
 
-        const char* status_icon = mState__.status ? "✓" : "✗";
-        auto status_color = mState__.status ? Color::Green : Color::Red;
+        const char* status_icon = mState__.outcome == "pass"    ? "✓"
+                                : mState__.outcome == "blocked" ? "🚧"
+                                : mState__.outcome == "fail"    ? "✗" : "…";
+        auto status_color = mState__.outcome == "pass"    ? Color::Green
+                          : mState__.outcome == "blocked" ? Color::Yellow
+                          : mState__.outcome == "fail"    ? Color::Red : Color::GrayDark;
 
-        auto target_display = hbox({
+        auto exercise_display = hbox({
             text(" "),
             text(status_icon) | bold | color(status_color),
             text(" "),
-            text(mState__.target) | color(Color::Magenta)
+            text(mState__.exercise) | color(Color::Magenta)
         });
 
-        const auto target_file = utils::normalize_path(
-            mState__.target_files.empty() ? std::string{} : mState__.target_files.front()
+        const auto exercise_file = utils::normalize_path(
+            mState__.files.empty() ? std::string{} : mState__.files.front()
         );
 
         Elements status_elements;
         status_elements.push_back(progress_display);
         status_elements.push_back(text(""));
-        status_elements.push_back(target_display);
-        if (!target_file.empty()) {
+        status_elements.push_back(exercise_display);
+        if (!exercise_file.empty()) {
             status_elements.push_back(hbox({
                 text(" +") | color(Color::Yellow),
                 text(" → ") | color(Color::Blue),
-                text(target_file) | color(Color::GrayDark)
+                text(exercise_file) | color(Color::GrayDark)
             }));
         }
         status_elements.push_back(text(""));
+        // 结构化诊断置顶(最多 5 条)——学习者第一眼看到「哪一行没过」
+        int shown = 0;
+        for (const auto& c : mState__.checks) {
+            if (shown++ == 5) {
+                status_elements.push_back(text(std::format("   … ({} more)", mState__.checks.size() - 5)) | color(Color::GrayDark));
+                break;
+            }
+            status_elements.push_back(hbox({ text("  • ") | color(Color::Red),
+                                             text(c) | color(Color::GrayLight) }));
+        }
+        if (!mState__.checks.empty()) status_elements.push_back(text(""));
 
         auto status_section = vbox(std::move(status_elements));
         auto status_screen = Screen::Create(Dimension::Full(), Dimension::Fit(status_section));
@@ -125,8 +140,8 @@ private:
         std::println("");
         
         // AI Area Height Calculation
-        auto ai_lines = split_lines(mState__.ai_tips);
-        int ai_height = mState__.ai_tips.empty() ? 0 : static_cast<int>(ai_lines.size()) + 2;
+        auto ai_lines = split_lines(mState__.hint);
+        int ai_height = mState__.hint.empty() ? 0 : static_cast<int>(ai_lines.size()) + 2;
 
         // Output Area Height Calculation
         int available_for_output = term_height - STATUS_LINES - std::max(ai_height, AI_MIN_LINES);
@@ -146,7 +161,7 @@ private:
         std::println("");
 
         // AI Area
-        if (!mState__.ai_tips.empty()) {
+        if (!mState__.hint.empty()) {
             // Blinking animation icons
             const char* ai_icons[] = { "🤖", "✨", "👾", "🧠", "🎮" };
             const char* ai_icon = ai_icons[(mAnimation_frame__ / 2) % 5];
