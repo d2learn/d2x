@@ -1,3 +1,8 @@
+module;
+
+// stdout 是宏，import std 不提供，flush 需要它走全局模块片段
+#include <cstdio>
+
 export module d2x.ui.plugin.print:checker_page;
 
 import std;
@@ -52,6 +57,11 @@ class PrintCheckerPage : public ICheckerPageUI {
         std::println("{}", mState__.output);
         std::println("\n---");
         std::println("🤖: {}", mState__.ai_tips);
+
+        // 页面渲染完整体 flush 一次。stdout 重定向到管道/文件时是全缓冲，
+        // 而 clear_console 经子进程直写 fd 绕过了缓冲 —— 不 flush 的话，
+        // 非 TTY 消费者只能看到清屏序列，页面内容永远滞留在缓冲区。
+        std::fflush(stdout);
     }
 
 public:
