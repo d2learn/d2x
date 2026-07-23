@@ -132,7 +132,10 @@ public:
             found.push_back(std::move(ex));
         });
 
-        std::ranges::sort(found, {}, &Exercise::order);
+        // 比较器而非 ranges 投影:clang 20(MSVC 目标)对跨模块类型的
+        // ranges 投影在 PCM 代码生成阶段 ICE(Windows CI 实测)。
+        std::sort(found.begin(), found.end(),
+                  [](const Exercise& a, const Exercise& b) { return a.order < b.order; });
         return found;
     }
 

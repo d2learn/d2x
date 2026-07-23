@@ -78,8 +78,9 @@ export void status(bool emit_events = false) {
     std::vector<std::pair<std::string, Chap>> chapters;
     int done_total = 0;
     for (const auto& ex : exercises) {
-        auto it = std::ranges::find(chapters, ex.chapter,
-                                    &std::pair<std::string, Chap>::first);
+        auto it = chapters.begin();
+        for (; it != chapters.end(); ++it)
+            if (it->first == ex.chapter) break;
         if (it == chapters.end()) {
             chapters.emplace_back(ex.chapter, Chap{});
             it = std::prev(chapters.end());
