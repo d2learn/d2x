@@ -36,7 +36,7 @@ void new_project(const cmdline::ParsedArgs& args) {
         return;
     }
 
-    xlings::ensure_xlings_installed();
+    if (!xlings::require_xlings()) return;
 
     std::string cmd = "xlings install d2x:project-template -y";
     std::println("加载项目模板...");
@@ -104,7 +104,10 @@ export int run(int argc, char* argv[]) {
                 }
                 std::println("Opening book: {}", bookdir.string());
                 if (std::filesystem::exists(bookdir)) {
-                    platform::run_command_capture("xlings install mdbook -y");
+                    if (!xlings::require_xlings()) return;
+                    // 透传而非捕获:mdbook 下载可达几十秒,使用者应看到
+                    // xlings 自己的进度,而不是面对静止的终端(D4/S10)。
+                    platform::exec("xlings install mdbook -y");
                     platform::exec(("mdbook serve --open " + bookdir.string()).c_str());
                 } else
                     std::println("Error: No book found");

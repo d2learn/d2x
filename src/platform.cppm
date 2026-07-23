@@ -69,21 +69,5 @@ namespace platform {
         return std::system(cmd.c_str());
     }
 
-    export bool xlings_install() {
-        std::println("正在安装 xlings...");
-        int status = platform::exec(std::string(XLINGS_INSTALL_CMD));
-        if (status == 0) {
-            std::println("xlings 安装成功！");
-            std::string xlings_path { std::filesystem::path(get_xlings_bin()).parent_path().string() };
-            char* path_env = std::getenv("PATH");
-            if (path_env) {
-                std::string new_path = std::string(path_env) + ";" + xlings_path;
-                set_env_variable("PATH", new_path.c_str());
-            }
-            return true;
-        }
-        std::println("xlings 安装失败");
-        return false;
-    }
 } // namespace platform
 } // namespace d2x
