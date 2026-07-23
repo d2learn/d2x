@@ -1,7 +1,9 @@
 module;
 
 #include <cstdio>
+#if defined(__APPLE__)
 #include <sys/wait.h>
+#endif
 #include <cstdlib>
 
 export module d2x.platform:macos;

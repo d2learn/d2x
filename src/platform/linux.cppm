@@ -2,7 +2,9 @@ module;
 
 #include <cstdio>
 #include <cstdlib>
+#if defined(__linux__)
 #include <sys/wait.h>
+#endif
 
 export module d2x.platform:linux;
 import std;

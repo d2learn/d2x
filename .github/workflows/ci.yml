@@ -140,6 +140,14 @@ jobs:
           ref: feat/mcpp-provider
           path: d2mcpp
 
+      # 预热 + 可见诊断:不带 -q 构建 Provider——冷启动的工具链下载/构建
+      # 全程可见;任何失败在这里直接暴露,而不是被 checker 的协议流吞掉。
+      - name: Warm course provider (visible diagnostics)
+        run: |
+          cd d2mcpp
+          mcpp build -p d2x/buildtools
+          mcpp run -q -p d2x/buildtools -- describe
+
       - name: Run d2x checker (must reach first exercise, not hang on load)
         run: |
           D2X="$PWD/$(find target -name d2x -type f | head -1)"
