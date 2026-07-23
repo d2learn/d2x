@@ -52,6 +52,64 @@ std::string read_source(const std::vector<std::string>& files) {
     }
 }
 
+// 只读进度总览:Provider exercises + state.json,不构建、不监听、亚秒返回。
+// --emit-events 时输出 machine-readable JSON 一行。
+export void status(bool emit_events = false) {
+    if (emit_events) log::to_stderr(true);
+
+    auto command = Config::buildtools();
+    if (command.empty()) {
+        log::error("未配置 buildtools —— 请在 .d2x.json 里指定 Provider 命令");
+        return;
+    }
+    auto provider = provider::ProcessProvider(command, provider::TransportOptions{
+        .idle_timeout = std::chrono::seconds(Config::provider_idle_timeout()),
+        .on_warning   = [](std::string msg) { log::warning("{}", msg); },
+    });
+    auto exercises = provider.exercises();
+    if (exercises.empty()) {
+        log::error("Provider 没有返回任何练习");
+        return;
+    }
+    auto state = session::StateStore(state_path());
+
+    // 按章节聚合
+    struct Chap { int total{}; int done{}; };
+    std::vector<std::pair<std::string, Chap>> chapters;
+    int done_total = 0;
+    for (const auto& ex : exercises) {
+        auto it = std::ranges::find(chapters, ex.chapter,
+                                    &std::pair<std::string, Chap>::first);
+        if (it == chapters.end()) {
+            chapters.emplace_back(ex.chapter, Chap{});
+            it = std::prev(chapters.end());
+        }
+        it->second.total++;
+        if (state.is_completed(ex.id)) { it->second.done++; done_total++; }
+    }
+
+    if (emit_events) {
+        std::string chaps;
+        for (const auto& [name, c] : chapters) {
+            if (!chaps.empty()) chaps += ",";
+            chaps += std::format(R"({{"chapter":"{}","completed":{},"total":{}}})",
+                                 name, c.done, c.total);
+        }
+        std::println(R"({{"event":"status","completed":{},"total":{},"current":"{}","chapters":[{}]}})",
+                     done_total, exercises.size(), state.current(), chaps);
+        return;
+    }
+
+    std::println("Progress: {}/{}{}", done_total, exercises.size(),
+                 state.current().empty() ? "" : std::format("   current: {}", state.current()));
+    std::println("");
+    for (const auto& [name, c] : chapters) {
+        std::println("  {} {}/{}  {}",
+                     c.done == c.total ? "✅" : (c.done > 0 ? "🔶" : "⬜"),
+                     c.done, c.total, name);
+    }
+}
+
 export void run(const std::string& start_target = "", bool emit_events = false) {
 
     // 先改道再做任何事：早退路径上的错误日志同样不能落进协议流。

@@ -119,6 +119,12 @@ export int run(int argc, char* argv[]) {
                 apply_global_options(a);
                 checker::run(std::string(a.positional_or(0, "")), a.is_flag_set("emit-events"));
             })
+        .subcommand("status")
+            .description("show exercise progress overview (read-only)")
+            .action([](const cmdline::ParsedArgs& a) {
+                apply_global_options(a);
+                checker::status(a.is_flag_set("emit-events"));
+            })
         .subcommand("config")
             .description("configure d2x (.d2x.json)")
             .action([](const cmdline::ParsedArgs& a) {
