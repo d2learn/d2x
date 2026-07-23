@@ -95,37 +95,44 @@ public:
 
     std::size_t completed_count() const {
         if (!mState) return 0;
-        return static_cast<std::size_t>(std::ranges::count_if(
-            mExercises, [&](const Exercise& e) { return mState->is_completed(e.id); }));
+        // 平铺循环,同 seek_start 的 ICE 规避说明
+        std::size_t n = 0;
+        for (const auto& e : mExercises)
+            if (mState->is_completed(e.id)) ++n;
+        return n;
     }
 
     // 定位起点。优先级：显式指定 > 持久化的 current > 第一个未完成 > 开头。
     // 匹配用子串，方便学员只敲 `d2x checker rvalue`。
+    // 平铺循环而非 ranges 投影:clang 20(MSVC 目标)对跨模块类型
+    // (Exercise 现居 d2x.protocol.types)的 ranges 投影在 PCM 代码生成
+    // 阶段 ICE(Windows CI 实测,Stack dump 指向本函数)。行为等价。
     void seek_start(std::string_view wanted) {
         if (!wanted.empty()) {
-            auto it = std::ranges::find_if(mExercises, [&](const Exercise& e) {
-                return e.id.find(wanted) != std::string::npos;
-            });
-            if (it != mExercises.end()) {
-                mIndex = static_cast<std::size_t>(std::distance(mExercises.begin(), it));
-                return;
+            for (std::size_t i = 0; i < mExercises.size(); ++i) {
+                if (mExercises[i].id.find(wanted) != std::string::npos) {
+                    mIndex = i;
+                    return;
+                }
             }
         }
 
         if (mState && !mState->current().empty()) {
-            auto it = std::ranges::find(mExercises, mState->current(), &Exercise::id);
-            if (it != mExercises.end()) {
-                mIndex = static_cast<std::size_t>(std::distance(mExercises.begin(), it));
-                return;
+            for (std::size_t i = 0; i < mExercises.size(); ++i) {
+                if (mExercises[i].id == mState->current()) {
+                    mIndex = i;
+                    return;
+                }
             }
         }
 
-        auto it = std::ranges::find_if(mExercises, [&](const Exercise& e) {
-            return !mState || !mState->is_completed(e.id);
-        });
-        mIndex = (it != mExercises.end())
-               ? static_cast<std::size_t>(std::distance(mExercises.begin(), it))
-               : 0;
+        for (std::size_t i = 0; i < mExercises.size(); ++i) {
+            if (!mState || !mState->is_completed(mExercises[i].id)) {
+                mIndex = i;
+                return;
+            }
+        }
+        mIndex = 0;
     }
 
     bool done() const { return mIndex >= mExercises.size(); }
