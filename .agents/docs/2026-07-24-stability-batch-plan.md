@@ -26,5 +26,21 @@
 - [x] **T8 (P6) 呈现重构**:UIState 改名(exercise/files/completed/total);print+tui 新分区布局;输出截断(头20尾30)+`.d2x/last-output.log`;消息目录 zh/en 随 lang。
 - [x] **T9 (P7) `d2x status`**:只读总览(按章节聚合),--emit-events 出 JSON。
 - [x] **T10 文档**:架构参考 §9 缺口勾销更新+新增条目;README 命令表;设计文档路线图勾选。
-- [ ] **T11 PR+CI+合入**:push → PR(标题带 2026.07.24.1) → CI 绿 → squash 合入。
-- [ ] **T12 发布+生态验证**:release.yml(version=2026.07.24.1) → 产物→ xlings-res/d2x 双源镜像+sha256 → xim-pkgindex d2x.lua bump PR → 合并;`xlings install d2x@2026.07.24.1`;本地 d2mcpp 联动(checker 闯关+e2e all)复验;结果回记。
+- [x] **T11 PR+CI+合入**:push → PR(标题带 2026.07.24.1) → CI 绿 → squash 合入。
+- [x] **T12 发布+生态验证**:release.yml(version=2026.07.24.1) → 产物→ xlings-res/d2x 双源镜像+sha256 → xim-pkgindex d2x.lua bump PR → 合并;`xlings install d2x@2026.07.24.1`;本地 d2mcpp 联动(checker 闯关+e2e all)复验;结果回记。
+
+
+## 完成记录(2026-07-24)
+
+- PR #31 squash 合入(c8ee6b5);CI 5/5 全绿——**Windows 构建为本项目分支首次通过**
+  (根治两类问题:POSIX 头无平台守卫;clang20/MSVC 对跨模块类型 ranges 投影的 PCM
+  代码生成 ICE——已全部平铺规避并留注)。
+- release v2026.07.24.1 三平台产物;RES 双源镜像(GitHub+GitCode)sha256 三方一致;
+  xim-pkgindex #412 合入,索引工件重发布+gitee 同步+站点部署 success。
+- 生态终验:`xlings install xim:d2x@2026.07.24.1` → `d2x --version` ✓;官方 d2x+
+  官方 mcpp 0.0.104 在 d2mcpp 上闯关推进(hello-mcpp → cpp11-00)+ `d2x status` ✓;
+  d2mcpp .xlings.json d2x pin 已升 2026.07.24.1。
+- 过程中沉淀的上游待报事项:①xlings workspace-pin 的 shim 解析不认全局安装版本
+  (本地+CI 双复现;绕行=按 workspace .xlings.json 用 `xlings install -y`);
+  ②xlings 混合 local:/xim: 事务缓存下 install 钩子未执行的边缘状态(清缓存即愈);
+  ③GitCode release 下载 HEAD 探测 401(GET 正常)。
