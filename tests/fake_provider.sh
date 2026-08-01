@@ -2,7 +2,7 @@
 # 协议一致性测试用假 Provider。
 #
 # 用法(作为 .d2x.json 的 buildtools):
-#   bash tests/fake_provider.sh <mode>            # d2x 会追加 describe/exercises/check <id>
+#   bash tests/fake_provider.sh <mode> <dir>      # d2x 会追加 describe/exercises/check <id>
 #
 # mode:
 #   ok            正常课程:两道练习;check 语义:练习文件含 SOLVED → pass,
@@ -12,13 +12,14 @@
 #   garbage       事件流里混入非 JSON 噪声行——必须被忽略,验证仍正常工作
 #   hang          check 陷入无输出的沉睡——活性超时必须终止它
 #
-# 练习文件路径经 FAKE_DIR 环境变量传入(e2e 准备的临时目录)。
+# 练习文件目录(e2e 准备的临时目录)经第二个位置参数传入,而不是
+# `FAKE_DIR=... bash ...` 的环境变量前缀 —— Windows 上 d2x 经 _popen 走
+# cmd.exe 启动 Provider,cmd 没有这种前缀语法,整条命令会直接失败。
 set -u
 
 MODE="${1:?mode required}"; shift
+DIR="${1:?dir required}"; shift
 VERB="${1:?verb required}"; shift || true
-
-DIR="${FAKE_DIR:?FAKE_DIR required}"
 
 emit() { printf '%s\n' "$1"; }
 
