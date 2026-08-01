@@ -134,9 +134,9 @@ jobs:
           "$D2X" --version
           echo "D2X=$PWD/$D2X" >> "$GITHUB_ENV"
 
-      # 与 linux 同一套 tests/e2e.sh:协议容错/推进/单实例锁/flush。
-      # (活性超时一组在 Windows 自动跳过——run_lines_idle 在 _WIN32 下没有
-      #  实现,见 protocol/src/process.cppm。)
+      # 与 linux 同一套 tests/e2e.sh,五组全跑(协议容错/推进/活性超时/
+      # 单实例锁/flush)——活性超时一组曾因 Windows 无实现而跳过,现已用
+      # Job Object 补齐(protocol/src/process.cppm)。
       - name: Protocol conformance e2e (fake provider)
         shell: bash
         run: D2X="$D2X" bash tests/e2e.sh

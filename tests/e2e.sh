@@ -90,18 +90,15 @@ rm -rf "$dir"
 # 判据是「20s 窗口内出现 verdict」——若 idle 超时未生效,hang(300s)不可能
 # 在窗口内给出任何 verdict。
 #
-# Windows 跳过:protocol/src/process.cppm 的 run_lines_idle 在 _WIN32 下
-# 显式回退为「无超时运行」(缺按句柄终止进程树的安全路径),这条场景在该
-# 平台上没有被测行为可言。跳过是如实反映实现,不是掩盖失败。
-if [[ $IS_WINDOWS -eq 1 ]]; then
-    echo "E2E SKIP: idle-timeout(Windows 无 run_lines_idle 实现,见 process.cppm)"
-else
-    dir=$(setup hang)
-    out=$(run_events "$dir" 20 D2X_PROVIDER_IDLE_TIMEOUT=2)
-    echo "$out" | grep -q '"outcome":"fail"' || fail "idle-timeout: 20s 内未出现 fail verdict(超时未生效)"
-    echo "$out" | grep -qi "terminated\|no output" || fail "idle-timeout: 缺终止说明: $out"
-    rm -rf "$dir"
-fi
+# 三平台同跑:Windows 侧的 run_lines_idle 已用 Job Object 实现(见
+# protocol/src/process.cppm),不再跳过。hang 模式下 Provider 是
+# cmd.exe → bash → sleep 300 的一棵树,Job Object 保证整棵被终止 ——
+# 只杀直接子进程的话 sleep 会活下来,窗口内同样出不了 verdict。
+dir=$(setup hang)
+out=$(run_events "$dir" 20 D2X_PROVIDER_IDLE_TIMEOUT=2)
+echo "$out" | grep -q '"outcome":"fail"' || fail "idle-timeout: 20s 内未出现 fail verdict(超时未生效)"
+echo "$out" | grep -qi "terminated\|no output" || fail "idle-timeout: 缺终止说明: $out"
+rm -rf "$dir"
 
 # ── 4 单实例锁 ───────────────────────────────────────────────────────
 dir=$(setup ok)
