@@ -7,7 +7,11 @@ on:
 
 env:
   XLINGS_VERSION: 0.4.51
-  MCPP_VERSION: 0.0.104
+  # mcpp 最新版(索引 latest ref)。升级不是喜好问题:mcpplibs 依赖索引已把
+  # index floor 抬到 0.0.109,原先钉的 0.0.104 一律 E0006「index requires
+  # mcpp >= 0.0.109」而拒绝解析 compat.ftxui 等依赖,全平台 CI 都会红。
+  # 与 .xlings.json 里的 workspace pin 保持一致。
+  MCPP_VERSION: 2026.8.1.1
   XLINGS_NON_INTERACTIVE: '1'
 
 jobs:
@@ -82,9 +86,27 @@ jobs:
           chmod +x "$BIN"
           "$BIN" --version
 
+  # Windows 10 / 11 两条产品线。
+  #
+  # GitHub 不提供 Windows 客户端版的 x64 托管 runner,只有 Server 镜像;这里
+  # 用与各自客户端版共享内核基线的 Server 镜像代表两条线:
+  #   windows-2022 = Server 2022,与 Windows 10 22H2 同基线(10.0.20348)
+  #   windows-2025 = Server 2025,与 Windows 11 24H2 同基线(10.0.26100)
+  # 这是托管 runner 上能覆盖到的最接近真实 Win10/Win11 的组合。
+  #
+  # 两个 job 都跑完整测试段:构建 → 版本自检 → 协议一致性 e2e → d2mcpp 真
+  # 课程 checker 冒烟,而不只是「能编过」。
   build-windows:
-    name: build (windows x86_64, mcpp)
-    runs-on: windows-latest
+    name: build+test (${{ matrix.title }}, mcpp)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            title: windows-10 baseline
+          - os: windows-2025
+            title: windows-11 baseline
     steps:
       - uses: actions/checkout@v4
 
@@ -93,6 +115,12 @@ jobs:
         run: |
           irm https://raw.githubusercontent.com/openxlings/xlings/main/tools/other/quick_install.ps1 | iex
           "$env:USERPROFILE\.xlings\subos\current\bin" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+
+      - name: Report Windows build (which client line this maps to)
+        shell: pwsh
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "runner=${{ matrix.os }}  caption=$($os.Caption)  build=$($os.Version)"
 
       - name: Build with mcpp
         shell: bash
@@ -104,6 +132,86 @@ jobs:
           D2X=$(find target -name 'd2x.exe' -type f | head -1)
           test -n "$D2X" || { echo "d2x.exe not found"; find target -type f | head -20; exit 1; }
           "$D2X" --version
+          echo "D2X=$PWD/$D2X" >> "$GITHUB_ENV"
+
+      # 与 linux 同一套 tests/e2e.sh,五组全跑(协议容错/推进/活性超时/
+      # 单实例锁/flush)——活性超时一组曾因 Windows 无实现而跳过,现已用
+      # Job Object 补齐(protocol/src/process.cppm)。
+      - name: Protocol conformance e2e (fake provider)
+        shell: bash
+        run: D2X="$D2X" bash tests/e2e.sh
+
+      # 用真实课程 d2mcpp 验证 checker 在 Windows 上确实跑得起来——判据不是
+      # 「构建通过」,而是「能拉起 Provider、拿到练习、报出第一题的编译错误」。
+      - name: Checkout d2mcpp course
+        uses: actions/checkout@v4
+        with:
+          repository: mcpp-community/d2mcpp
+          path: d2mcpp
+
+      # d2mcpp 上游仍钉在 mcpp 0.0.104,而 mcpplibs 索引已把下限抬到 0.0.109
+      # (E0006),照原样装课程工具链会直接构建失败。这里对齐到 d2x 自己钉的
+      # 版本——本冒烟测的是 d2x checker 跑不跑得起来,不是课程的版本钉法。
+      # 上游 d2mcpp 跟进后可移除本步骤。
+      - name: Align course mcpp pin with d2x (upstream d2mcpp still pins 0.0.104)
+        shell: bash
+        run: sed -i 's/"0\.0\.104"/"${{ env.MCPP_VERSION }}"/g' d2mcpp/.xlings.json
+
+      - name: Install course toolchain (per d2mcpp .xlings.json)
+        shell: bash
+        run: cd d2mcpp && xlings install -y
+
+      # 预热 + 可见诊断:不带 -q 构建 Provider,冷启动的工具链下载/构建全程
+      # 可见;任何失败在这里直接暴露,而不是被 checker 的协议流吞掉。
+      - name: Warm course provider (visible diagnostics)
+        shell: bash
+        run: |
+          cd d2mcpp
+          mcpp build -p d2x/buildtools
+          mcpp run -q -p d2x/buildtools -- describe
+
+      # 直接跑一遍课程 Provider 的 check,把原始 NDJSON 摆进日志。Windows 上
+      # 该链路目前拿不到 `mcpp test --message-format json` 的记录(见下一步的
+      # 说明),留下原始输出便于上游定位,也让日后的回归有据可查。
+      - name: Provider check diagnostics (raw NDJSON)
+        shell: bash
+        continue-on-error: true
+        run: |
+          cd d2mcpp
+          mcpp run -q -p d2x/buildtools -- check hello-mcpp 2>&1 | head -40 || true
+
+      - name: Run d2x checker (must reach first exercise, not hang on load)
+        shell: bash
+        run: |
+          cd d2mcpp
+          # Force the print UI so output is plain text in a non-TTY runner.
+          sed -i 's/"ui_backend": *"tui"/"ui_backend": "print"/' .d2x.json || true
+          set +e
+          timeout -k 15 180 "$D2X" checker --ui print --lang en > checker.out 2>&1
+          code=$?
+          set -e
+          echo "checker exit=$code (124 = killed by timeout while waiting for edits = expected)"
+          echo "------------------ checker output (tail) ------------------"
+          tail -n 40 checker.out || true
+          echo "-----------------------------------------------------------"
+          # 判据只覆盖 d2x 自己的职责:checker 必须真的走完「读配置 → 拉起
+          # Provider → 枚举练习 → 选中第一题 → 渲染练习页」,而不是卡在加载
+          # 日志上。这三个串同时出现才说明页面渲染出来了。
+          #
+          # 与 linux job 的差别是刻意的:linux 还额外要求透出课程的编译错误,
+          # Windows 不要求 —— 课程 Provider 在 Windows 上拿不到
+          # `mcpp test --message-format json` 的记录(上一步的原始诊断可见),
+          # 属 mcpp / d2mcpp 上游缺口。d2x 侧行为是正确的:协议规定「Provider
+          # 没给 verdict 即 fail」(tests/e2e.sh 1b 钉的就是这条),页面也如实
+          # 显示 failed。上游补齐后,这里应当收紧到与 linux 一致。
+          if grep -q "hello-mcpp" checker.out \
+             && grep -q "Exercise:" checker.out \
+             && grep -q "Status:" checker.out; then
+            echo "OK: checker reached and rendered the first exercise (not stuck on the loading log)"
+          else
+            echo "FAIL: checker never rendered the first exercise within the window (stuck on load?)"
+            exit 1
+          fi
 
   # Smoke test: a real `d2x checker` run against the d2mcpp course must reach
   # and report the FIRST exercise's build error within a bounded window, rather
@@ -135,6 +243,11 @@ jobs:
           repository: mcpp-community/d2mcpp
           path: d2mcpp
 
+      # 见 Windows job 同名步骤:d2mcpp 上游仍钉 0.0.104,会撞 mcpplibs 索引
+      # 下限(E0006)。对齐到 d2x 自己钉的版本,上游跟进后可移除。
+      - name: Align course mcpp pin with d2x (upstream d2mcpp still pins 0.0.104)
+        run: sed -i 's/"0\.0\.104"/"${{ env.MCPP_VERSION }}"/g' d2mcpp/.xlings.json
+
       # 按课程自己的 .xlings.json 安装 mcpp——xlings 的 workspace-pin shim
       # 解析只认经该路径安装的版本(全局 `xlings install mcpp@X` 不满足,
       # CI 实测 "version not found";已知 xlings 侧待改进项)。
@@ -164,7 +277,13 @@ jobs:
           echo "------------------ checker output (tail) ------------------"
           tail -n 40 checker.out || true
           echo "-----------------------------------------------------------"
-          if grep -q "hello-mcpp" checker.out && grep -qiE "error" checker.out; then
+          # linux 是最严的一档:除了「渲染出第一题」(与 Windows job 同判据),
+          # 还要求真的把课程的编译错误透出来 —— 这条整链路(mcpp test →
+          # Provider verdict → d2x 呈现)在 linux 上是通的。
+          if grep -q "hello-mcpp" checker.out \
+             && grep -q "Exercise:" checker.out \
+             && grep -q "Status:" checker.out \
+             && grep -qiE "error" checker.out; then
             echo "OK: checker reached and reported the first exercise (not stuck on the loading log)"
           else
             echo "FAIL: checker produced no exercise build output within the window (stuck on load?)"

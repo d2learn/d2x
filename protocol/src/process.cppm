@@ -12,6 +12,10 @@ module;
 #  include <fcntl.h>
 #  include <poll.h>
 #  include <signal.h>
+#else
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX            // 否则 windows.h 的 min/max 宏会撞上标准库
+#  include <windows.h>
 #endif
 
 export module d2x.protocol.process;
@@ -77,17 +81,124 @@ export RunStatus run_lines(const std::string& cmd,
 }
 
 // 逐行运行 + 活性超时:自上次收到任何输出起超过 idle 时长即判定挂死,
-// SIGKILL 进程组并返回 idle_killed=true。固定总时长会误杀 Provider 的
+// 终止整棵进程树并返回 idle_killed=true。固定总时长会误杀 Provider 的
 // 冷启动构建(可达分钟级),活性模型只要求「持续有产出」。
 //
-// Windows:暂无安全的按句柄终止路径,回退为无超时运行(与 mcpp 的
-// --timeout 同样的 documented best-effort 语义)。
+// 两个平台的做法不同但语义一致 ——「杀掉整棵进程树,而不只是直接子进程」:
+// POSIX 用独立进程组 + kill(-pid),Windows 用 Job Object。Provider 往往还有
+// 孙进程(mcpp → 编译器),只杀直接子进程会留下孤儿继续占用产物目录。
 export RunStatus run_lines_idle(const std::string& cmd,
                                 std::chrono::milliseconds idle,
                                 const std::function<void(std::string_view)>& on_line) {
     if (idle.count() <= 0) return run_lines(cmd, on_line);
 #ifdef _WIN32
-    return run_lines(cmd, on_line);
+    // 不用 _popen:它拿不到进程句柄,超时了无从终止。改为 CreateProcess 起
+    // cmd.exe,并把进程纳入 Job Object —— Job Object 是 Windows 上终止整棵
+    // 进程树的正规手段,对应 POSIX 分支的 kill(-pid)。
+    //
+    // 命令行走 ANSI 版 API,与本文件 run_lines 里的 _popen 保持一致(两者都
+    // 按当前代码页解释);统一改 UTF-16 是另一件事,不在这里顺手做。
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength        = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE rd = nullptr, wr = nullptr;
+    if (!::CreatePipe(&rd, &wr, &sa, 0)) return {127, false};
+    // 读端不让子进程继承:否则管道多出一个写者,子进程退出也读不到 EOF。
+    ::SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOA si{};
+    si.cb         = sizeof(si);
+    si.dwFlags    = STARTF_USESTDHANDLES;
+    si.hStdOutput = wr;
+    si.hStdError  = wr;          // stderr 并入 stdout,与 run_lines 的 2>&1 一致
+    si.hStdInput  = ::GetStdHandle(STD_INPUT_HANDLE);
+
+    // CreateProcess 会就地改写命令行缓冲区,必须传可写副本。
+    std::string full = "cmd.exe /C " + cmd;
+    std::vector<char> cmdline(full.begin(), full.end());
+    cmdline.push_back('\0');
+
+    PROCESS_INFORMATION pi{};
+    // CREATE_SUSPENDED:先挂起,纳入 Job 之后再放行 —— 否则子进程可能在被
+    // 纳管之前就派生出逃逸在 Job 之外的孙进程。
+    BOOL ok = ::CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, TRUE,
+                               CREATE_SUSPENDED | CREATE_NO_WINDOW,
+                               nullptr, nullptr, &si, &pi);
+    ::CloseHandle(wr);           // 父进程手里这份写端必须关,否则永远读不到 EOF
+    if (!ok) { ::CloseHandle(rd); return {127, false}; }
+
+    HANDLE job = ::CreateJobObjectW(nullptr, nullptr);
+    if (job) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION jl{};
+        jl.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        ::SetInformationJobObject(job, JobObjectExtendedLimitInformation, &jl, sizeof(jl));
+        if (!::AssignProcessToJobObject(job, pi.hProcess)) {
+            // 纳管失败(例如已处在不可嵌套的 Job 里):退化成只杀直接子进程。
+            // 比完全不超时好 —— 至少 d2x 自己不会跟着挂死。
+            ::CloseHandle(job);
+            job = nullptr;
+        }
+    }
+    ::ResumeThread(pi.hThread);
+    ::CloseHandle(pi.hThread);
+
+    std::string line;
+    std::array<char, 4096> buffer{};
+    auto last_output = std::chrono::steady_clock::now();
+    bool killed = false;
+
+    auto emit = [&](DWORD n) {
+        for (DWORD i = 0; i < n; ++i) {
+            char c = buffer[static_cast<std::size_t>(i)];
+            if (c == '\n') {
+                if (line.ends_with('\r')) line.pop_back();
+                on_line(line);
+                line.clear();
+            } else {
+                line += c;
+            }
+        }
+    };
+
+    // 全程 PeekNamedPipe 探量再读,绝不裸调 ReadFile —— 管道读是阻塞的,
+    // 挂死的 Provider 会把这里一起拖住,活性超时就永远轮不到判定。
+    auto drain = [&]() -> bool {   // 返回是否读到了任何数据
+        bool got = false;
+        for (;;) {
+            DWORD avail = 0;
+            if (!::PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;
+            if (avail == 0) break;
+            DWORD want = avail < buffer.size() ? avail : static_cast<DWORD>(buffer.size());
+            DWORD n = 0;
+            if (!::ReadFile(rd, buffer.data(), want, &n, nullptr) || n == 0) break;
+            got = true;
+            emit(n);
+        }
+        return got;
+    };
+
+    for (;;) {
+        if (drain()) last_output = std::chrono::steady_clock::now();
+
+        if (::WaitForSingleObject(pi.hProcess, 0) == WAIT_OBJECT_0) {
+            drain();                       // 收尾:进程已退,管道里可能还有残留
+            if (!line.empty()) on_line(line);
+            DWORD code = 0;
+            ::GetExitCodeProcess(pi.hProcess, &code);
+            ::CloseHandle(pi.hProcess);
+            ::CloseHandle(rd);
+            if (job) ::CloseHandle(job);
+            return {static_cast<int>(code), killed};
+        }
+
+        if (!killed && std::chrono::steady_clock::now() - last_output > idle) {
+            if (job) ::TerminateJobObject(job, 1);      // 整棵进程树
+            else     ::TerminateProcess(pi.hProcess, 1);
+            killed = true;
+        }
+        ::Sleep(50);
+    }
 #else
     ::setenv("LD_LIBRARY_PATH", "", 1);
     // popen 无法拿到 pid,这里手工 fork + exec sh -c,子进程自成进程组,
