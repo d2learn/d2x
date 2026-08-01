@@ -113,10 +113,19 @@ echo "$second" | grep -q "正在此仓库运行" || fail "lock: 第二实例未�
 kill $CHK 2>/dev/null; wait $CHK 2>/dev/null
 rm -rf "$dir"
 
-# ── 5 stdout 契约:print 页面重定向下可见 ─────────────────────────────
+# ── 5 stdout 契约 + 展示路径形态 ─────────────────────────────────────
 dir=$(setup ok)
 ( cd "$dir" && timeout 12 "$D2X" checker --ui print > page.out 2>/dev/null )
 grep -q "ex-1" "$dir/page.out" || fail "flush: 重定向下页面不可见(13863df 回归)"
+
+# Provider 报的是绝对路径,而 checker 的 cwd 就是该目录,所以展示路径必须被
+# 压成相对形式,任何情况下都不该以分隔符打头。旧 normalize_path 只掐 '/',
+# Windows 上留下 "\ex1.txt"(Win10/Win11 CI 实测)——这条断言钉死该回归。
+file_val=$(sed -n 's/^File: *//p' "$dir/page.out" | head -1)
+[[ "$file_val" == *ex1.txt ]] \
+    || fail "path: 练习页未展示 ex1.txt: '$file_val'"
+[[ "$file_val" != /* && "$file_val" != \\* ]] \
+    || fail "path: 展示路径带前导分隔符(normalize_path 回归): '$file_val'"
 rm -rf "$dir"
 
 if [[ $rc -eq 0 ]]; then echo "E2E: ALL GREEN"; else echo "E2E: FAILED"; fi

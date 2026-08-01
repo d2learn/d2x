@@ -5,17 +5,29 @@ import std;
 namespace d2x {
 export namespace utils {
 
+// 把绝对路径压成相对 cwd 的短路径,用于练习页展示;不在 cwd 之下(或压不出
+// 相对关系)时原样返回。
+//
+// 不再手写「前缀匹配 + 掐掉一个 '/'」:那种写法只认 '/',Windows 上分隔符是
+// '\',前导分隔符掐不掉,练习页会显示成 "\src\intro\tests\hello-mcpp.cpp"
+// 这种带前导分隔符的怪路径(Win10/Win11 CI 实测)。交给 lexically_relative
+// 处理,分隔符与 ".." 情形都由标准库负责。
+//
+// 输出统一用 generic_string()(正斜杠):课程与文档都以正斜杠书写路径,两个
+// 平台显示一致也便于 CI 断言。
 std::string normalize_path(std::string path) {
     if (path.empty()) return "N/A";
-    
-    const auto current = std::filesystem::current_path().string();
-    if (path.find(current) == 0) {
-        path = path.substr(current.length());
-        if (!path.empty() && path.front() == '/') {
-            path.erase(path.begin());
-        }
-    }
-    return path;
+
+    std::error_code ec;
+    const auto current = std::filesystem::current_path(ec);
+    if (ec) return path;
+
+    // 纯词法运算,不碰文件系统——路径可能来自 Provider,未必存在于本机。
+    const auto rel = std::filesystem::path(path).lexically_relative(current);
+    if (rel.empty()) return path;                       // 压不出相对关系(如本就是相对路径)
+    if (rel.begin()->string() == "..") return path;     // 在 cwd 之外,相对形式反而更难读
+
+    return rel.generic_string();
 }
 
 std::vector<std::string> split_string(const std::string& str, char delimiter) {
