@@ -147,18 +147,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mcpp-community/d2mcpp
-          # TEMP(验证用):指向 d2mcpp#87 的分支,验证 Windows 上 Provider 的
-          # `2>/dev/null` 修复。该 PR 合入后改回默认分支。
-          ref: sync/d2x-2026.08.02.1-mcpp-2026.8.1.1
           path: d2mcpp
-
-      # d2mcpp 上游仍钉在 mcpp 0.0.104,而 mcpplibs 索引已把下限抬到 0.0.109
-      # (E0006),照原样装课程工具链会直接构建失败。这里对齐到 d2x 自己钉的
-      # 版本——本冒烟测的是 d2x checker 跑不跑得起来,不是课程的版本钉法。
-      # 上游 d2mcpp 跟进后可移除本步骤。
-      - name: Align course mcpp pin with d2x (upstream d2mcpp still pins 0.0.104)
-        shell: bash
-        run: sed -i 's/"0\.0\.104"/"${{ env.MCPP_VERSION }}"/g' d2mcpp/.xlings.json
 
       - name: Install course toolchain (per d2mcpp .xlings.json)
         shell: bash
@@ -173,9 +162,9 @@ jobs:
           mcpp build -p d2x/buildtools
           mcpp run -q -p d2x/buildtools -- describe
 
-      # 直接跑一遍课程 Provider 的 check,把原始 NDJSON 摆进日志。Windows 上
-      # 该链路目前拿不到 `mcpp test --message-format json` 的记录(见下一步的
-      # 说明),留下原始输出便于上游定位,也让日后的回归有据可查。
+      # 直接跑一遍课程 Provider 的 check,把原始 NDJSON 摆进日志。这条链路
+      # (mcpp test → Provider verdict)曾在 Windows 上整条断掉,原始输出留在
+      # 日志里,回归时一眼能看出是哪一层没给记录。
       - name: Provider check diagnostics (raw NDJSON)
         shell: bash
         continue-on-error: true
@@ -250,15 +239,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mcpp-community/d2mcpp
-          # TEMP(验证用):指向 d2mcpp#87 的分支,验证 Windows 上 Provider 的
-          # `2>/dev/null` 修复。该 PR 合入后改回默认分支。
-          ref: sync/d2x-2026.08.02.1-mcpp-2026.8.1.1
           path: d2mcpp
-
-      # 见 Windows job 同名步骤:d2mcpp 上游仍钉 0.0.104,会撞 mcpplibs 索引
-      # 下限(E0006)。对齐到 d2x 自己钉的版本,上游跟进后可移除。
-      - name: Align course mcpp pin with d2x (upstream d2mcpp still pins 0.0.104)
-        run: sed -i 's/"0\.0\.104"/"${{ env.MCPP_VERSION }}"/g' d2mcpp/.xlings.json
 
       # 按课程自己的 .xlings.json 安装 mcpp——xlings 的 workspace-pin shim
       # 解析只认经该路径安装的版本(全局 `xlings install mcpp@X` 不满足,
