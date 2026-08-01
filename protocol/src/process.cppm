@@ -146,7 +146,9 @@ export RunStatus run_lines_idle(const std::string& cmd,
     std::string line;
     std::array<char, 4096> buffer{};
     auto last_output = std::chrono::steady_clock::now();
-    bool killed = false;
+    bool killed    = false;
+    bool escalated = false;
+    std::chrono::steady_clock::time_point kill_at{};
 
     auto emit = [&](DWORD n) {
         for (DWORD i = 0; i < n; ++i) {
@@ -192,10 +194,31 @@ export RunStatus run_lines_idle(const std::string& cmd,
             return {static_cast<int>(code), killed};
         }
 
-        if (!killed && std::chrono::steady_clock::now() - last_output > idle) {
+        auto now = std::chrono::steady_clock::now();
+
+        if (!killed && now - last_output > idle) {
             if (job) ::TerminateJobObject(job, 1);      // 整棵进程树
             else     ::TerminateProcess(pi.hProcess, 1);
             killed = true;
+            kill_at = now;
+        }
+
+        // 终止之后进程仍不退出,就不能一直等下去 —— 这个循环存在的意义就是
+        // 防止挂死,它自己挂死是最糟的结局。分两级兜底:先补一次直杀(Job
+        // 路径被拒时还有救),再到点就放弃等待、如实返回 idle_killed,由上层
+        // 报「Provider 被终止」。退出码沿用 POSIX 分支被 KILL 时的 128+9。
+        if (killed) {
+            auto since_kill = now - kill_at;
+            if (!escalated && since_kill > std::chrono::seconds(5)) {
+                ::TerminateProcess(pi.hProcess, 1);
+                escalated = true;
+            }
+            if (since_kill > std::chrono::seconds(15)) {
+                ::CloseHandle(pi.hProcess);
+                ::CloseHandle(rd);
+                if (job) ::CloseHandle(job);   // KILL_ON_JOB_CLOSE 再补一刀
+                return {137, true};
+            }
         }
         ::Sleep(50);
     }
