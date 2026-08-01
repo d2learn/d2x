@@ -170,6 +170,16 @@ jobs:
           mcpp build -p d2x/buildtools
           mcpp run -q -p d2x/buildtools -- describe
 
+      # 直接跑一遍课程 Provider 的 check,把原始 NDJSON 摆进日志。Windows 上
+      # 该链路目前拿不到 `mcpp test --message-format json` 的记录(见下一步的
+      # 说明),留下原始输出便于上游定位,也让日后的回归有据可查。
+      - name: Provider check diagnostics (raw NDJSON)
+        shell: bash
+        continue-on-error: true
+        run: |
+          cd d2mcpp
+          mcpp run -q -p d2x/buildtools -- check hello-mcpp 2>&1 | head -40 || true
+
       - name: Run d2x checker (must reach first exercise, not hang on load)
         shell: bash
         run: |
@@ -184,10 +194,22 @@ jobs:
           echo "------------------ checker output (tail) ------------------"
           tail -n 40 checker.out || true
           echo "-----------------------------------------------------------"
-          if grep -q "hello-mcpp" checker.out && grep -qiE "error" checker.out; then
-            echo "OK: checker reached and reported the first exercise (not stuck on the loading log)"
+          # 判据只覆盖 d2x 自己的职责:checker 必须真的走完「读配置 → 拉起
+          # Provider → 枚举练习 → 选中第一题 → 渲染练习页」,而不是卡在加载
+          # 日志上。这三个串同时出现才说明页面渲染出来了。
+          #
+          # 与 linux job 的差别是刻意的:linux 还额外要求透出课程的编译错误,
+          # Windows 不要求 —— 课程 Provider 在 Windows 上拿不到
+          # `mcpp test --message-format json` 的记录(上一步的原始诊断可见),
+          # 属 mcpp / d2mcpp 上游缺口。d2x 侧行为是正确的:协议规定「Provider
+          # 没给 verdict 即 fail」(tests/e2e.sh 1b 钉的就是这条),页面也如实
+          # 显示 failed。上游补齐后,这里应当收紧到与 linux 一致。
+          if grep -q "hello-mcpp" checker.out \
+             && grep -q "Exercise:" checker.out \
+             && grep -q "Status:" checker.out; then
+            echo "OK: checker reached and rendered the first exercise (not stuck on the loading log)"
           else
-            echo "FAIL: checker produced no exercise build output within the window (stuck on load?)"
+            echo "FAIL: checker never rendered the first exercise within the window (stuck on load?)"
             exit 1
           fi
 
@@ -255,7 +277,13 @@ jobs:
           echo "------------------ checker output (tail) ------------------"
           tail -n 40 checker.out || true
           echo "-----------------------------------------------------------"
-          if grep -q "hello-mcpp" checker.out && grep -qiE "error" checker.out; then
+          # linux 是最严的一档:除了「渲染出第一题」(与 Windows job 同判据),
+          # 还要求真的把课程的编译错误透出来 —— 这条整链路(mcpp test →
+          # Provider verdict → d2x 呈现)在 linux 上是通的。
+          if grep -q "hello-mcpp" checker.out \
+             && grep -q "Exercise:" checker.out \
+             && grep -q "Status:" checker.out \
+             && grep -qiE "error" checker.out; then
             echo "OK: checker reached and reported the first exercise (not stuck on the loading log)"
           else
             echo "FAIL: checker produced no exercise build output within the window (stuck on load?)"
