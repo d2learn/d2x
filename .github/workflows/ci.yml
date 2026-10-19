@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  XLINGS_VERSION: 0.4.51
+  XLINGS_VERSION: 2026.10.19.2
   # 与当前依赖索引的最低版本兼容；旧 2026.8.1.1 已被 index floor 拒绝。
   # 与 .xlings.json 里的 workspace pin 保持一致。
   MCPP_VERSION: 2026.10.19.1

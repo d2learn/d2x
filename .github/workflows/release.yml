@@ -9,7 +9,7 @@ on:
         type: string
 
 env:
-  XLINGS_VERSION: v0.4.51
+  XLINGS_VERSION: v2026.10.19.2
 
 jobs:
   build-linux:
