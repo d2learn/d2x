@@ -190,3 +190,5 @@ Linux、macOS、Windows 均需构建和 socket 行为验证，尤其检查 Windo
 - review 确认：配置只校验获胜来源；全局字段不受 UI/LLM 条件影响；向导往返保留字段；安装失败不启动 serve；POSIX 退出码已归一化。
 - CI 前置修复：历史 xlings 0.4.51 资源已 404，CI/release 改用有完整平台资产的 2026.10.19.2。
 - release 工作流新增权威归档 SHA256 sidecar，为双镜像与索引校验提供同源依据。
+
+- 跨平台验收修正：macOS 的 `/var` 与 `/private/var` 指向同一目录，测试先 canonicalize 临时根目录；Windows 原有程序在中文 cwd 的静态初始化阶段崩溃，通过目标的 `windows_code_page = "utf-8"` 清晰声明 UTF-8 应用清单，保持中文路径验收要求。

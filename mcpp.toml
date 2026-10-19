@@ -8,6 +8,8 @@ repo        = "https://github.com/d2learn/d2x"
 [targets.d2x]
 kind = "bin"
 main = "src/main.cpp"
+# Chinese book/config paths must survive native Windows narrow filesystem APIs.
+windows_code_page = "utf-8"
 
 [workspace]
 members = ["protocol"]

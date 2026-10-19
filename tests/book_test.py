@@ -21,7 +21,7 @@ class BookTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="d2x-book-")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.home = self.root / "home"
         self.home.mkdir()
         self.project = self.root / "课程 space's book"
@@ -61,7 +61,7 @@ sys.exit(int(os.environ.get("BOOK_TEST_" + tool.upper() + "_EXIT", "0")))
                                 env=dict(self.env, **env), capture_output=True,
                                 text=True, encoding="utf-8", errors="replace", timeout=20)
         output = result.stdout + result.stderr
-        self.assertEqual(result.returncode == 0, ok, output)
+        self.assertEqual(result.returncode == 0, ok, f"exit={result.returncode}: {output}")
         return result, output
 
     def recorded(self, tool):
