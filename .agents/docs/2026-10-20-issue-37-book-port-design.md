@@ -199,3 +199,5 @@ Linux、macOS、Windows 均需构建和 socket 行为验证，尤其检查 Windo
 - Windows CI 实测独占 `0.0.0.0` 监听导致 localhost bind 返回 10013 而非 10048；根据 [Microsoft Winsock 说明](https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse)，增加原生 TCP 监听表确认后再判定占用，保留其他权限错误。测试同时验证显式冲突及默认自动避让，不通过放宽断言绕过。
 
 - 当前最终本地静态配置：26 项 book 集成测试中 23 项通过（本机 localhost 无 IPv6 映射而跳过两项，Windows 专属项跳过）；静态二进制 protocol e2e 全绿。macOS CI 已实际执行并通过 IPv6 用例。
+
+- 最终停止行为 review：正常 Ctrl+C / SIGTERM 保留 130/143 状态但不打印“换端口重试”的错误；其他非零退出仍报告。另加一项回归测试（合计 27 项）。

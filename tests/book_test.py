@@ -277,6 +277,11 @@ sys.exit(int(os.environ.get("BOOK_TEST_" + tool.upper() + "_EXIT", "0")))
         self.assertEqual(result.returncode, 9)
         self.assertIn("mdBook exited with 9", output)
 
+    def test_cancel_exit_status_is_quiet(self):
+        result, output = self.run_book(ok=False, BOOK_TEST_MDBOOK_EXIT="130")
+        self.assertEqual(result.returncode, 130)
+        self.assertNotIn("Error:", output)
+
     def test_language_resolution(self):
         (self.project / "book" / "ja").mkdir()
         self.run_book("--lang", "ja")

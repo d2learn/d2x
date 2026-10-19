@@ -112,7 +112,8 @@ int run_book(const cmdline::ParsedArgs& args) {
             std::cout.flush();
             status = platform::normalize_exit_status(platform::exec(
                 std::format("mdbook serve --open --port {} {}", port, *quoted)));
-            if (status != 0)
+            // Ctrl+C/termination is a normal way to stop this foreground server.
+            if (status != 0 && status != 130 && status != 143)
                 std::println(stderr, "Error: mdBook exited with {}; retry or choose another port with d2x book --port <N>", status);
             return status;
         }
