@@ -1,6 +1,6 @@
 [package]
 name        = "d2x"
-version     = "2026.08.02.2"
+version     = "2026.10.20.1"
 description = "AI-powered development assistant for C++ projects"
 license     = "Apache-2.0"
 repo        = "https://github.com/d2learn/d2x"
@@ -8,6 +8,8 @@ repo        = "https://github.com/d2learn/d2x"
 [targets.d2x]
 kind = "bin"
 main = "src/main.cpp"
+# Chinese book/config paths must survive native Windows narrow filesystem APIs.
+windows_code_page = "utf-8"
 
 [workspace]
 members = ["protocol"]
@@ -21,3 +23,14 @@ ftxui = "6.1.9"
 [dependencies.mcpplibs]
 cmdline = "0.0.2"
 llmapi  = "0.2.6"
+
+[target.windows.build]
+ldflags = ["-lws2_32", "-liphlpapi"]
+
+# Fully static ELF images must not retain a toolchain's dynamic-loader flag.
+# Keep this Linux distribution profile separate from normal development builds.
+[profile.static-release]
+opt = 2
+debug = false
+strip = true
+ldflags = ["-Wl,--no-dynamic-linker"]

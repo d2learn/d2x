@@ -9,7 +9,7 @@ on:
         type: string
 
 env:
-  XLINGS_VERSION: v0.4.51
+  XLINGS_VERSION: v2026.10.19.2
 
 jobs:
   build-linux:
@@ -37,7 +37,7 @@ jobs:
         run: xlings install -y
 
       - name: Build with mcpp (static)
-        run: mcpp build --static
+        run: mcpp build --static --profile static-release
 
       - name: Locate & verify binary
         run: |
@@ -158,6 +158,18 @@ jobs:
         with:
           path: artifacts
 
+      - name: Generate archive checksums
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib
+          from pathlib import Path
+          for archive in Path("artifacts").rglob("*"):
+              if archive.is_file() and archive.name.endswith((".tar.gz", ".zip")):
+                  digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                  archive.with_name(archive.name + ".sha256").write_text(
+                      digest + "  " + archive.name + "\n")
+          PYCODE
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -169,5 +181,6 @@ jobs:
             artifacts/d2x-linux-x86_64/d2x-${{ inputs.version }}-linux-x86_64.tar.gz
             artifacts/d2x-macosx-arm64/d2x-${{ inputs.version }}-macosx-arm64.tar.gz
             artifacts/d2x-windows-x86_64/d2x-${{ inputs.version }}-windows-x86_64.zip
+            artifacts/**/*.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

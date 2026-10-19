@@ -27,12 +27,25 @@ cd d2mcpp && d2x checker     # 开始学习——编辑、保存,自动重测并
 | `d2x checker [name]` | 交互式练习循环(子串匹配可跳转到指定练习) |
 | `d2x status` | 只读进度总览,按章节聚合 |
 | `d2x install <pkg>` | 从[课程索引](https://github.com/d2learn/xim-pkgindex-d2x)获取课程 |
-| `d2x book` | 本地预览课程电子书 |
+| `d2x book [-p PORT]` | 本地预览课程电子书，默认端口占用时自动避让 |
 | `d2x new <name>` | 从[模板](https://d2learn.github.io/d2x-project-template)创建新课程 |
 | `d2x config` | 交互式配置 `.d2x.json`(语言、界面、编辑器、大模型) |
 | `d2x list [query]` | 搜索可用课程 |
 
 常用参数:`--lang zh|en`、`--ui tui|print`、`--emit-events`(NDJSON 事件流,供外部前端消费)。
+
+## 电子书预览
+
+`d2x book` 在 **3000–3099** 中选择第一个可用的 localhost 端口。
+使用 `d2x book --port 8080`（或 `-p 8080`）指定端口；显式指定的端口
+被占用时会报错，不会自动更换。
+
+优先级：`--port` > `D2X_BOOK_PORT` > 项目 `.d2x.json` > `~/.d2x.json` > 自动选择。可在配置文件添加 `"book_port": 8080` 作为持久设置；合法值为
+1–65535 的整数，删除字段可恢复自动选择。运行 `d2x config` 会保留此字段。
+
+检测覆盖 IPv4 和 IPv6 的 localhost 地址。检测结束后到 mdBook 启动之间，
+端口仍可能被其他进程抢占，此时重新运行或指定其他端口即可。
+安装和启动失败会返回非零退出码，并保留 mdBook 的原始输出。
 
 ## 面向课程作者
 
