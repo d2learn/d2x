@@ -70,9 +70,8 @@ Book ports 3000–3001 are in use; trying http://localhost:3002
 平台层增加一个小接口，概念签名如下：
 
 ```cpp
-enum class PortState { Available, InUse };
-std::expected<PortState, std::string>
-probe_tcp_port(std::string_view host, std::uint16_t port);
+// true = 可用，false = 占用；其他错误保留错误说明。
+std::expected<bool, std::string> probe_tcp_port(int port);
 ```
 
 接口只回答能否绑定或返回系统错误；自动顺延、次数上限和日志都属于 book 命令策略。
@@ -182,3 +181,12 @@ Linux、macOS、Windows 均需构建和 socket 行为验证，尤其检查 Windo
 - cmdline 的 option builder 会返回所在子 App，因此 book App 单独构建再注册到根 App；测试覆盖根命令注册与全局语言参数。
 - 为满足当前依赖索引最低版本，同步 `.xlings.json` 和 CI 到 mcpp 2026.10.19.1。
 - 本地/跨平台 CI 的功能测试使用 `tests/book_test.py`；所有失败路径断言真实进程退出码，冲突使用真实 socket。
+
+### 本地验收与自我 review（发布前）
+
+- `mcpp build` 通过；`tests/book_test.py` 24 项中 22 项通过，IPv6 localhost 未映射和 Windows 专属项按环境跳过；`tests/e2e.sh` 全绿。
+- 真实 mdBook 0.4.43 和 0.5.2 均验证：3000 被占后自动避让，HTTP 返回页面，浏览器打开的 URL 使用最终端口，WebSocket 收到 reload 且页面内容更新，SIGINT 后实际监听关闭。
+- review 修正：独立构建 book App，避免 cmdline 的 option builder 使后续命令挂到错误节点；补充根 help 回归用例。
+- review 确认：配置只校验获胜来源；全局字段不受 UI/LLM 条件影响；向导往返保留字段；安装失败不启动 serve；POSIX 退出码已归一化。
+- CI 前置修复：历史 xlings 0.4.51 资源已 404，CI/release 改用有完整平台资产的 2026.10.19.2。
+- release 工作流新增权威归档 SHA256 sidecar，为双镜像与索引校验提供同源依据。

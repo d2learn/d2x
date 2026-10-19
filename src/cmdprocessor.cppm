@@ -129,7 +129,7 @@ export int run(int argc, char* argv[]) {
     // subcommand separately so subsequent commands stay attached to d2x.
     auto book_command = cmdline::App("book");
     book_command.description("open project's book")
-        .option("port").short_name('p').takes_value()
+        .option("port").short_name('p').takes_value().value_name("PORT")
             .help("book port (1-65535); default: first available in 3000-3099")
         .action([&book_exit_code](const cmdline::ParsedArgs& a) {
             apply_global_options(a);
