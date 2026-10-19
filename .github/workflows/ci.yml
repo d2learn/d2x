@@ -36,8 +36,13 @@ jobs:
           path: ~/.xlings/data/xpkgs/xim-x-mcpp/${{ env.MCPP_VERSION }}/registry
           key: mcpp-sandbox-${{ runner.os }}-mcpp${{ env.MCPP_VERSION }}
 
-      - name: Build with mcpp
-        run: mcpp build
+      - name: Build with mcpp (Linux distribution profile)
+        run: |
+          mcpp build --static --profile static-release
+          binary=$(find target -name d2x -type f | head -1)
+          if readelf -l "$binary" | grep -q INTERP; then
+            echo "Static binary unexpectedly contains an interpreter"; exit 1
+          fi
 
       - name: Verify d2x
         run: |

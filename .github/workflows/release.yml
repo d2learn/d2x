@@ -37,7 +37,7 @@ jobs:
         run: xlings install -y
 
       - name: Build with mcpp (static)
-        run: mcpp build --static
+        run: mcpp build --static --profile static-release
 
       - name: Locate & verify binary
         run: |

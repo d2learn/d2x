@@ -192,3 +192,6 @@ Linux、macOS、Windows 均需构建和 socket 行为验证，尤其检查 Windo
 - release 工作流新增权威归档 SHA256 sidecar，为双镜像与索引校验提供同源依据。
 
 - 跨平台验收修正：macOS 的 `/var` 与 `/private/var` 指向同一目录，测试先 canonicalize 临时根目录；Windows 原有程序在中文 cwd 的静态初始化阶段崩溃，通过目标的 `windows_code_page = "utf-8"` 清晰声明 UTF-8 应用清单，保持中文路径验收要求。
+
+- 静态发布验收修正：LLVM 链路的 `--static` 仍继承了工具链的动态加载器参数，产生可构建但无法启动的 ELF。独立 `static-release` profile 通过 `--no-dynamic-linker` 保证纯静态 ELF；Linux CI 改为验证同一发布配置并拒绝残留 INTERP。开发构建与 session 测试继续使用正常配置。
+- `mcpp test` 的既有 session 测试 28/28 断言通过。
