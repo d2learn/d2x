@@ -79,8 +79,8 @@ std::expected<bool, std::string> probe_tcp_port(int port);
 1. 对 `localhost` 使用 `getaddrinfo` 获得 TCP 地址。实现按候选端口解析，范围最多 100 次，避免为这一本地解析引入额外对象生命周期。
 2. 对可用的 IPv4 / IPv6 地址执行 `socket → bind → close`，用 RAII 释放句柄。对该端口检查期间保留已绑定句柄，结束后一起释放。
 3. 任一有效地址明确返回 `EADDRINUSE` / `WSAEADDRINUSE`，将该候选视为占用。两个地址族都可用时均检查，避免只检查 IPv4 却在 mdBook 使用 `::1` 时失败。
-4. 不受系统支持的地址族可略过；至少一个有效地址完成检查才可判定可用。其余错误保留系统错误码及说明上报；Windows 的 `WSAEACCES` 也不能一概解释成占用。
-5. 不开启 `SO_REUSEPORT`；探测 socket 不使用会放宽独占绑定的复用选项。Windows 使用 `SO_EXCLUSIVEADDRUSE`，包含 Winsock 初始化/清理，并确保链接 `ws2_32`。
+4. 不受系统支持的地址族可略过；至少一个有效地址完成检查才可判定可用。其余错误保留系统错误码及说明上报；Windows 的 `WSAEACCES` 也不能一概解释成占用：只有原生 TCP 监听表确认同地址或通配地址存在监听，才按冲突处理；否则仍保留权限错误。
+5. 不开启 `SO_REUSEPORT`；探测 socket 不使用会放宽独占绑定的复用选项。Windows 使用 `SO_EXCLUSIVEADDRUSE`，包含 Winsock 初始化/清理，并确保链接 `ws2_32` 和 TCP 监听表查询所需的 `iphlpapi`。
 
 保持 mdBook 的 `localhost` 默认监听，不顺带开放到 `0.0.0.0`。同时检查多个地址是一种保守策略：即使 mdBook 恰好能用另一个地址，也会跳过存在冲突的端口。这比依赖 C++ 与 Rust 的地址排序完全一致更稳定。
 
@@ -195,3 +195,5 @@ Linux、macOS、Windows 均需构建和 socket 行为验证，尤其检查 Windo
 
 - 静态发布验收修正：LLVM 链路的 `--static` 仍继承了工具链的动态加载器参数，产生可构建但无法启动的 ELF。独立 `static-release` profile 通过 `--no-dynamic-linker` 保证纯静态 ELF；Linux CI 改为验证同一发布配置并拒绝残留 INTERP。开发构建与 session 测试继续使用正常配置。
 - `mcpp test` 的既有 session 测试 28/28 断言通过。
+
+- Windows CI 实测独占 `0.0.0.0` 监听导致 localhost bind 返回 10013 而非 10048；根据 [Microsoft Winsock 说明](https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse)，增加原生 TCP 监听表确认后再判定占用，保留其他权限错误。测试同时验证显式冲突及默认自动避让，不通过放宽断言绕过。

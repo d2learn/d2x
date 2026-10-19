@@ -3,11 +3,13 @@ module;
 
 #include <cstdlib>
 #include <cerrno>
+#include <cstring>
 #ifdef _WIN32
 #  define WIN32_LEAN_AND_MEAN
 #  define NOMINMAX
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
+#  include <iphlpapi.h>
 #else
 #  include <sys/socket.h>
 #  include <sys/wait.h>
@@ -32,6 +34,43 @@ namespace {
         int error = ::WSAStartup(MAKEWORD(2, 2), &data);
         ~Winsock() { if (!error) ::WSACleanup(); }
     };
+
+    // An exclusive wildcard listener can make bind(localhost) report ACCESS
+    // rather than INUSE. Confirm an overlapping listener before classifying
+    // that error as a conflict; excluded ports and other permission errors
+    // must remain errors. Reading the table does not connect to the service.
+    bool has_overlapping_listener(const addrinfo& address) {
+        DWORD size = 0;
+        auto result = ::GetExtendedTcpTable(nullptr, &size, FALSE,
+            address.ai_family, TCP_TABLE_OWNER_PID_LISTENER, 0);
+        if (result != ERROR_INSUFFICIENT_BUFFER) return false;
+        std::vector<unsigned char> buffer(size);
+        result = ::GetExtendedTcpTable(buffer.data(), &size, FALSE,
+            address.ai_family, TCP_TABLE_OWNER_PID_LISTENER, 0);
+        if (result != NO_ERROR) return false;
+        if (address.ai_family == AF_INET) {
+            auto* target = reinterpret_cast<const sockaddr_in*>(address.ai_addr);
+            auto* table = reinterpret_cast<const MIB_TCPTABLE_OWNER_PID*>(buffer.data());
+            for (DWORD i = 0; i < table->dwNumEntries; ++i) {
+                const auto& row = table->table[i];
+                if (static_cast<unsigned short>(row.dwLocalPort) == target->sin_port
+                    && (row.dwLocalAddr == INADDR_ANY
+                        || row.dwLocalAddr == target->sin_addr.s_addr)) return true;
+            }
+        } else if (address.ai_family == AF_INET6) {
+            auto* target = reinterpret_cast<const sockaddr_in6*>(address.ai_addr);
+            auto* table = reinterpret_cast<const MIB_TCP6TABLE_OWNER_PID*>(buffer.data());
+            for (DWORD i = 0; i < table->dwNumEntries; ++i) {
+                const auto& row = table->table[i];
+                if (static_cast<unsigned short>(row.dwLocalPort) != target->sin6_port) continue;
+                bool wildcard = std::ranges::all_of(row.ucLocalAddr,
+                    [](unsigned char c) { return c == 0; });
+                if (wildcard || (row.dwLocalScopeId == target->sin6_scope_id
+                    && std::memcmp(row.ucLocalAddr, &target->sin6_addr, 16) == 0)) return true;
+            }
+        }
+        return false;
+    }
 #else
     using Socket = int;
     constexpr Socket invalid_socket = -1;
@@ -93,6 +132,9 @@ export std::expected<bool, std::string> probe_tcp_port(int port) {
         if (::bind(socket, address->ai_addr, static_cast<int>(address->ai_addrlen)) != 0) {
             error = socket_error();
             if (address_in_use(error)) return false;
+#ifdef _WIN32
+            if (error == WSAEACCES && has_overlapping_listener(*address)) return false;
+#endif
             return std::unexpected(describe_socket_error(error));
         }
     }

@@ -25,7 +25,7 @@ cmdline = "0.0.2"
 llmapi  = "0.2.6"
 
 [target.windows.build]
-ldflags = ["-lws2_32"]
+ldflags = ["-lws2_32", "-liphlpapi"]
 
 # Fully static ELF images must not retain a toolchain's dynamic-loader flag.
 # Keep this Linux distribution profile separate from normal development builds.
