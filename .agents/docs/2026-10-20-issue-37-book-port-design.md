@@ -197,3 +197,5 @@ Linux、macOS、Windows 均需构建和 socket 行为验证，尤其检查 Windo
 - `mcpp test` 的既有 session 测试 28/28 断言通过。
 
 - Windows CI 实测独占 `0.0.0.0` 监听导致 localhost bind 返回 10013 而非 10048；根据 [Microsoft Winsock 说明](https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse)，增加原生 TCP 监听表确认后再判定占用，保留其他权限错误。测试同时验证显式冲突及默认自动避让，不通过放宽断言绕过。
+
+- 当前最终本地静态配置：26 项 book 集成测试中 23 项通过（本机 localhost 无 IPv6 映射而跳过两项，Windows 专属项跳过）；静态二进制 protocol e2e 全绿。macOS CI 已实际执行并通过 IPv6 用例。

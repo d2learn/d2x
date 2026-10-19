@@ -40,8 +40,7 @@ cd d2mcpp && d2x checker     # 开始学习——编辑、保存,自动重测并
 使用 `d2x book --port 8080`（或 `-p 8080`）指定端口；显式指定的端口
 被占用时会报错，不会自动更换。
 
-优先级：`--port` > `D2X_BOOK_PORT` > 项目 `.d2x.json` > `~/.d2x.json`
-> 自动选择。可在配置文件添加 `"book_port": 8080` 作为持久设置；合法值为
+优先级：`--port` > `D2X_BOOK_PORT` > 项目 `.d2x.json` > `~/.d2x.json` > 自动选择。可在配置文件添加 `"book_port": 8080` 作为持久设置；合法值为
 1–65535 的整数，删除字段可恢复自动选择。运行 `d2x config` 会保留此字段。
 
 检测覆盖 IPv4 和 IPv6 的 localhost 地址。检测结束后到 mdBook 启动之间，

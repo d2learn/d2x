@@ -40,8 +40,7 @@ Useful flags: `--lang zh|en`, `--ui tui|print`, `--emit-events` (NDJSON stream f
 one explicitly, run `d2x book --port 8080` (or `-p 8080`). An explicitly
 configured port is strict: a conflict produces an error rather than changing it.
 
-Priority: `--port` > `D2X_BOOK_PORT` > project `.d2x.json` > `~/.d2x.json`
-> automatic selection. For a persistent setting, add `"book_port": 8080` to
+Priority: `--port` > `D2X_BOOK_PORT` > project `.d2x.json` > `~/.d2x.json` > automatic selection. For a persistent setting, add `"book_port": 8080` to
 one of those config files. Values must be integers from 1 to 65535; remove the
 setting to restore automatic selection. `d2x config` preserves this field.
 
