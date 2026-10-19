@@ -251,6 +251,16 @@ sys.exit(int(os.environ.get("BOOK_TEST_" + tool.upper() + "_EXIT", "0")))
         _, output = self.run_book("-p", str(port), ok=False)
         self.assertIn("is in use", output)
 
+    def test_ipv6_wildcard_conflict(self):
+        if not socket.has_ipv6:
+            self.skipTest("IPv6 unavailable")
+        port = self.free_port()
+        held = self.hold(port, socket.AF_INET6, "::")
+        if not held:
+            self.skipTest("localhost has no usable IPv6 address")
+        _, output = self.run_book("-p", str(port), ok=False)
+        self.assertIn("is in use", output)
+
     def test_auto_skips_wildcard_listener(self):
         self.hold(3000, socket.AF_INET, "0.0.0.0")
         self.run_book()
