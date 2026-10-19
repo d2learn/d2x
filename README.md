@@ -27,12 +27,28 @@ cd d2mcpp && d2x checker     # start learning — edit, save, it re-checks and a
 | `d2x checker [name]` | interactive practice loop (substring match to jump to an exercise) |
 | `d2x status` | read-only progress overview, grouped by chapter |
 | `d2x install <pkg>` | fetch a course from the [d2x index](https://github.com/d2learn/xim-pkgindex-d2x) |
-| `d2x book` | preview the course's book locally |
+| `d2x book [-p PORT]` | preview the course's book locally; automatically avoid occupied default ports |
 | `d2x new <name>` | scaffold a new course from the [template](https://d2learn.github.io/d2x-project-template) |
 | `d2x config` | interactive `.d2x.json` configuration (language, UI, editor, LLM) |
 | `d2x list [query]` | search available courses |
 
 Useful flags: `--lang zh|en`, `--ui tui|print`, `--emit-events` (NDJSON stream for external frontends).
+
+## Book preview
+
+`d2x book` uses the first available localhost port in **3000–3099**. To select
+one explicitly, run `d2x book --port 8080` (or `-p 8080`). An explicitly
+configured port is strict: a conflict produces an error rather than changing it.
+
+Priority: `--port` > `D2X_BOOK_PORT` > project `.d2x.json` > `~/.d2x.json`
+> automatic selection. For a persistent setting, add `"book_port": 8080` to
+one of those config files. Values must be integers from 1 to 65535; remove the
+setting to restore automatic selection. `d2x config` preserves this field.
+
+Port checks cover IPv4 and IPv6 localhost addresses. Another process can still
+claim a port between the check and mdBook's startup; if that happens, rerun the
+command or choose another port. Installation and serving errors return a nonzero
+exit status, with mdBook's output visible.
 
 ## For course authors
 

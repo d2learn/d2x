@@ -2,6 +2,7 @@ export module d2x.platform;
 
 import std;
 
+export import :network;
 export import :windows;
 export import :linux;
 export import :macos;
@@ -19,6 +20,9 @@ namespace platform {
     //export using platform_impl::xlings_install;
     export using platform_impl::set_env_variable;
     export using platform_impl::println;
+    export using platform_impl::probe_tcp_port;
+    export using platform_impl::quote_argument;
+    export using platform_impl::normalize_exit_status;
 
     export [[nodiscard]] std::string get_rundir() {
         return gRundir;

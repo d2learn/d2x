@@ -17,7 +17,7 @@ export struct EnvVars;
 export class Config;
 
 struct Info {
-    static constexpr std::string_view VERSION = "2026.08.02.2";   // 日期版本制 YYYY.MM.DD.N(见 2026-07-24 设计文档决策记录)
+    static constexpr std::string_view VERSION = "2026.10.20.1";   // 日期版本制 YYYY.MM.DD.N(见 2026-07-24 设计文档决策记录)
     static constexpr std::string_view REPO = "https://github.com/d2learn/d2x";
 };
 
@@ -33,6 +33,8 @@ struct EnvVars {
 
     // 打开练习文件用的编辑器命令。空字符串 = 不自动打开。
     static constexpr std::string_view D2X_EDITOR = "D2X_EDITOR";
+
+    static constexpr std::string_view D2X_BOOK_PORT = "D2X_BOOK_PORT";
 
     // LLM
     static constexpr std::string_view D2X_LLM_API_KEY = "D2X_LLM_API_KEY";
@@ -67,6 +69,7 @@ public:
         std::string editor;
         bool        editor_is_set{false};   // 区分「未配置」与「显式配成空串（=关闭）」
         int         provider_idle_timeout{120};   // 秒;<=0 关闭活性超时
+        std::optional<nlohmann::json> book_port; // preserve the field, including its type
         LLMConfig llm;
 
         // Defaults
@@ -225,6 +228,45 @@ public:
         return (std::filesystem::path(platform::get_rundir()) / ".d2x.json").string();
     }
 
+    struct BookPort {
+        int value;
+        std::string source;
+    };
+
+    // Resolve only when opening a book. CLI/env overrides must not validate
+    // shadowed values, nor should book settings break unrelated commands.
+    static std::optional<BookPort> book_port(std::optional<std::string> cli) {
+        auto parse = [](std::string_view text, std::string source) -> BookPort {
+            int port{};
+            auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), port);
+            if (ec != std::errc{} || end != text.data() + text.size()
+                || port < 1 || port > 65535) {
+                throw std::runtime_error("Invalid book port in " + source
+                    + "; expected an integer from 1 to 65535");
+            }
+            return {port, std::move(source)};
+        };
+        if (cli) return parse(*cli, "--port");
+        if (const char* env = std::getenv("D2X_BOOK_PORT"))
+            return parse(env, "D2X_BOOK_PORT");
+        for (auto scope : {Scope::Local, Scope::Global}) {
+            auto path = get_config_path(scope);
+            if (!std::filesystem::exists(path)) continue;
+            std::ifstream file(path);
+            if (!file) throw std::runtime_error("Cannot read config: " + path);
+            auto json = nlohmann::json::parse(file, nullptr, false);
+            if (json.is_discarded() || !json.is_object())
+                throw std::runtime_error("Invalid config object: " + path);
+            if (!json.contains("book_port")) continue;
+            auto& value = json["book_port"];
+            if (!value.is_number_integer())
+                throw std::runtime_error("Invalid book_port in " + path
+                    + "; expected an integer from 1 to 65535");
+            return parse(value.dump(), path + " (book_port)");
+        }
+        return std::nullopt;
+    }
+
     static void backup_config(const std::string& path) {
         try {
             auto now = std::chrono::system_clock::now();
@@ -256,6 +298,7 @@ public:
             cfg.lang = json.value("lang", "");
             cfg.ui_backend = json.value("ui_backend", "");
             cfg.buildtools = json.value("buildtools", "");
+            if (json.contains("book_port")) cfg.book_port = json["book_port"];
 
             // Load LLM config from nested "llm" object
             if (json.contains("llm") && json["llm"].is_object()) {
@@ -294,6 +337,7 @@ public:
         json["lang"] = cfg.lang;
         json["ui_backend"] = cfg.ui_backend;
         json["buildtools"] = cfg.buildtools;
+        if (cfg.book_port) json["book_port"] = *cfg.book_port;
 
         // Save LLM config to nested "llm" object
         nlohmann::json llm_json;
@@ -355,6 +399,7 @@ public:
 
         // Collect new config
         ConfigData new_cfg;
+        new_cfg.book_port = cfg.book_port;
         new_cfg.lang = utils::ask_input("Language (zh/en/auto)", cfg.lang.empty() ? std::string{ConfigData::DEFAULT_LANG} : cfg.lang);
         new_cfg.ui_backend = utils::ask_input("UI Backend", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
         new_cfg.buildtools = utils::ask_input("BuildTools", cfg.buildtools.empty() ? std::string{ConfigData::DEFAULT_BUILDTOOLS} : cfg.buildtools);
@@ -380,6 +425,7 @@ public:
         std::println("  lang:         {}", cfg.lang.empty() ? "(自动检测)" : cfg.lang);
         std::println("  ui_backend:   {}", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
         std::println("  buildtools:   {}", cfg.buildtools.empty() ? std::string{ConfigData::DEFAULT_BUILDTOOLS} : cfg.buildtools);
+        std::println("  book_port:    {}", cfg.book_port ? cfg.book_port->dump() : "(auto: 3000-3099)");
         std::println("  llm.api_key:      {}", cfg.llm.api_key.empty() ? "(未设置)" : cfg.llm.api_key.substr(0, 10) + "...");
         std::println("  llm.api_url:      {}", cfg.llm.api_url.empty() ? "(未设置)" : cfg.llm.api_url);
         std::println("  llm.model:        {}", cfg.llm.model.empty() ? std::string{ConfigData::DEFAULT_MODEL} : cfg.llm.model);
