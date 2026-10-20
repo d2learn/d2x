@@ -157,6 +157,7 @@ class Startup(unittest.TestCase):
                 quote = (lambda s: '"' + s + '"') if os.name == 'nt' else shlex.quote
                 command = ' '.join(quote(s) for s in [sys.executable, str(Path(__file__).resolve()), '--provider'])
                 (root / '.d2x.json').write_text(json.dumps({'buildtools': command}))
+                (root / 'one.txt').write_text('one')
                 allocated_console = False
                 process = None
                 if os.name == 'nt':
