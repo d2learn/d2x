@@ -180,8 +180,11 @@ class Startup(unittest.TestCase):
                     api.OpenProcess.restype = ctypes.c_void_p
                     api.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
                     api.CloseHandle.argtypes = [ctypes.c_void_p]
-                    handle = api.OpenProcess(0x1000, False, child)
+                    api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+                    handle = api.OpenProcess(0x101000, False, child)
                     if handle:
+                        self.assertEqual(api.WaitForSingleObject(handle, 2000), 0,
+                                         'Cancelled Provider descendant did not terminate')
                         code = ctypes.c_ulong()
                         api.GetExitCodeProcess(handle, ctypes.byref(code))
                         api.CloseHandle(handle)
