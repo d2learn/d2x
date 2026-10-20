@@ -49,3 +49,5 @@ Run portable failure injection with `D2X=/absolute/path/to/d2x python tests/star
 `tests/e2e.sh` additionally covers save/advance, locking and print output flushing.
 CI stages candidate binaries with `provenance.json` containing repository, checkout
 SHA, binary version and SHA256. These are test artifacts, not stable releases.
+
+Since 2026.10.21.1, user cancellation returns 130 and a `cancelled` code without Provider-failure diagnostics or a synthetic fail verdict.

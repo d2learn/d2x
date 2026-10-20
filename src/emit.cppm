@@ -144,7 +144,8 @@ public:
         refresh();
     }
     void error(std::string_view code, std::string_view phase, std::string_view message) override {
-        mStage.assign(phase); mOutcome = "error";
+        mStage = code == "cancelled" ? "cancelled" : std::string(phase);
+        mOutcome = code == "cancelled" ? "" : "error";
         mOutput = std::format("{}: {}", code, message);
         refresh();
     }

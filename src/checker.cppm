@@ -122,9 +122,13 @@ export int run(const std::string& start_target = "", bool emit_events = false) {
     if (emit_events) sink = std::make_unique<emit::StdoutSink>();
     else sink = std::make_unique<emit::UiSink>();
     auto fail = [&](std::string_view code, std::string_view phase, std::string_view message) {
+        if (code == "cancelled") {
+            sink->error(code, phase, "Cancelled by user");
+            return 130;
+        }
         sink->error(code, phase, message);
         log::error("{}", message);
-        return code == "cancelled" ? 130 : 1;
+        return 1;
     };
     try {
     // 单实例锁:两个监听循环互踩的破坏是静默的(见 instance_lock 模块头注)。
@@ -170,6 +174,7 @@ export int run(const std::string& start_target = "", bool emit_events = false) {
     // 再打 "No targets found for checking."，两层都在误导学员。
     std::string provider_name;
     if (!provider.describe(provider_name)) {
+        if (provider.cancelled()) return fail("cancelled", "describe", "");
         log::error("Provider 无响应: {}", command);
         log::error("请确认该命令可执行，且实现了 d2x Provider 协议（describe/exercises/check）");
         return fail(provider.error_code(), "describe", provider.error() +
@@ -215,6 +220,7 @@ export int run(const std::string& start_target = "", bool emit_events = false) {
             };
 
             auto verdict = provider.check(exercise, progress);
+            if (provider.cancelled()) return fail("cancelled", "check", "");
             // verdict.output 里可能有传输层事后补充的说明(缺 verdict 的原因、
             // 活性超时的终止说明)——它们没走过流式回调,不补发就永远到不了
             // 前端/协议消费者。

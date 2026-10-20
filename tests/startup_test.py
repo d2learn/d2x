@@ -50,7 +50,10 @@ def provider():
         if mode == 'enumerate-exit':
             sys.exit(8)
     elif verb == 'check':
-        if mode == 'check-hang':
+        if mode in ('check-hang', 'check-tree'):
+            if mode == 'check-tree':
+                child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])
+                Path('child.pid').write_text(str(child.pid))
             time.sleep(120)
         emit(event='verdict', outcome='pass', stage='run')
         if mode == 'check-exit':
@@ -148,55 +151,73 @@ class Startup(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
 
     def test_cancel_reaps_process_tree(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            quote = (lambda s: '"' + s + '"') if os.name == 'nt' else shlex.quote
-            command = ' '.join(quote(s) for s in [sys.executable, str(Path(__file__).resolve()), '--provider'])
-            (root / '.d2x.json').write_text(json.dumps({'buildtools': command}))
-            allocated_console = False
-            if os.name == 'nt':
-                import ctypes
-                api = ctypes.windll.kernel32
-                if not api.GetConsoleCP():
-                    self.assertTrue(api.AllocConsole(), 'Cannot allocate the test console')
-                    allocated_console = True
-            with subprocess.Popen([os.environ['D2X'], 'checker', '--emit-events'], cwd=root,
-                                  env={**os.environ, 'TEST_MODE': 'tree'}, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
-                                  creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0) as process:
-                limit = time.monotonic() + 5
-                while not (root / 'child.pid').exists() and time.monotonic() < limit:
-                    time.sleep(.05)
-                self.assertTrue((root / 'child.pid').exists())
-                child = int((root / 'child.pid').read_text())
-                process.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGINT)
-                out, err = process.communicate(timeout=5)
-                self.assertEqual(process.returncode, 130, err)
-                self.assertEqual(json.loads(out.splitlines()[-1])['code'], 'cancelled')
-                # A killed orphan may be a zombie until init reaps it; it must
-                # no longer execute, even when the direct shell already died.
-                state = Path(f'/proc/{child}/stat')
+        for mode in ['tree', 'check-tree']:
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                quote = (lambda s: '"' + s + '"') if os.name == 'nt' else shlex.quote
+                command = ' '.join(quote(s) for s in [sys.executable, str(Path(__file__).resolve()), '--provider'])
+                (root / '.d2x.json').write_text(json.dumps({'buildtools': command}))
+                allocated_console = False
+                process = None
                 if os.name == 'nt':
-                    api.OpenProcess.restype = ctypes.c_void_p
-                    api.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
-                    api.CloseHandle.argtypes = [ctypes.c_void_p]
-                    api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
-                    handle = api.OpenProcess(0x101000, False, child)
-                    if handle:
-                        self.assertEqual(api.WaitForSingleObject(handle, 2000), 0,
-                                         'Cancelled Provider descendant did not terminate')
-                        code = ctypes.c_ulong()
-                        api.GetExitCodeProcess(handle, ctypes.byref(code))
-                        api.CloseHandle(handle)
-                        self.assertNotEqual(code.value, 259, 'Cancelled Provider descendant is still active')
-                elif state.exists():
-                    self.assertIn(state.read_text().split()[2], ['Z', 'X'])
-                else:
-                    with self.assertRaises(ProcessLookupError):
-                        os.kill(child, 0)
-                self.assertFalse((root / '.d2x/checker.lock').exists())
-            if allocated_console:
-                api.FreeConsole()
+                    import ctypes
+                    api = ctypes.windll.kernel32
+                    if not api.GetConsoleCP():
+                        self.assertTrue(api.AllocConsole(), 'Cannot allocate the test console')
+                        allocated_console = True
+                try:
+                    process = subprocess.Popen([os.environ['D2X'], 'checker', '--emit-events'], cwd=root,
+                        env={**os.environ, 'TEST_MODE': mode}, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True, encoding='utf-8', errors='replace',
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
+                    limit = time.monotonic() + 5
+                    while not (root / 'child.pid').exists() and time.monotonic() < limit:
+                        time.sleep(.05)
+                    self.assertTrue((root / 'child.pid').exists())
+                    child = int((root / 'child.pid').read_text())
+                    process.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGINT)
+                    out, err = process.communicate(timeout=5)
+                    self.assertEqual(process.returncode, 130, err)
+                    events = [json.loads(line) for line in out.splitlines()]
+                    self.assertEqual(events[-1]['code'], 'cancelled')
+                    self.assertEqual(events[-1]['phase'], 'describe' if mode == 'tree' else 'check')
+                    self.assertNotIn('Provider 无响应', err)
+                    self.assertNotIn('WARNING', err)
+                    self.assertFalse(any(e.get('event') == 'verdict' for e in events))
+                    if os.name == 'nt':
+                        api.OpenProcess.restype = ctypes.c_void_p
+                        api.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+                        api.CloseHandle.argtypes = [ctypes.c_void_p]
+                        api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+                        handle = api.OpenProcess(0x101000, False, child)
+                        if handle:
+                            try:
+                                self.assertEqual(api.WaitForSingleObject(handle, 2000), 0)
+                                code = ctypes.c_ulong()
+                                api.GetExitCodeProcess(handle, ctypes.byref(code))
+                                self.assertNotEqual(code.value, 259, 'Cancelled descendant is still active')
+                            finally:
+                                api.CloseHandle(handle)
+                    else:
+                        limit = time.monotonic() + 2
+                        while True:
+                            state = subprocess.run(['ps', '-o', 'stat=', '-p', str(child)],
+                                                   capture_output=True, text=True).stdout.strip()
+                            if not state or state.startswith(('Z', 'X')):
+                                break
+                            self.assertLess(time.monotonic(), limit, 'Cancelled descendant is still active')
+                            time.sleep(.05)
+                    self.assertFalse((root / '.d2x/checker.lock').exists())
+                finally:
+                    if process is not None and process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=3)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait(timeout=3)
+                    if allocated_console:
+                        api.FreeConsole()
 
     def test_install_coordinates_course_dependencies(self):
         for failure in [False, True]:
