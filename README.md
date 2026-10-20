@@ -94,3 +94,5 @@ child process tree. Ctrl+C during a Provider call returns 130.
 
 See [the startup/transport contract](docs/provider-startup.md) for error codes,
 compatibility and failure-injection commands.
+
+Since 2026.10.21.1, user cancellation returns 130 and a `cancelled` code without Provider-failure diagnostics or a synthetic fail verdict.

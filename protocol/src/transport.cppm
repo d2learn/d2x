@@ -121,7 +121,7 @@ export class ProcessProvider final : public IExerciseProvider {
                 mErrorCode, mCommand, args, std::filesystem::current_path().string(),
                 std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count(),
                 status.exit_code, out_tail, err_tail);
-            warn(mError);
+            if (!mCancelled) warn(mError);
         }
         return status;
     }

@@ -83,3 +83,5 @@ print/TUI 会显示准备信息。`--emit-events` 在 session 前每十秒发送
 超时或调用期间取消会终止子进程树；调用期间 Ctrl+C 返回 130。
 
 详见 [启动与传输契约](docs/provider-startup.md)。
+
+从 2026.10.21.1 起，用户取消返回 130 和 `cancelled`，不会误报 Provider 故障或产生伪造的 fail 判定。
