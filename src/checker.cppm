@@ -111,20 +111,29 @@ export void status(bool emit_events = false) {
     }
 }
 
-export void run(const std::string& start_target = "", bool emit_events = false) {
+export int run(const std::string& start_target = "", bool emit_events = false) {
 
     // 先改道再做任何事：早退路径上的错误日志同样不能落进协议流。
     // （曾经这行在 buildtools 检查之后，于是配置缺失时两行报错直接
     //  打进了 stdout，外部客户端拿到的第一样东西就是非 JSON。）
     if (emit_events) log::to_stderr(true);
 
+    std::unique_ptr<emit::IEventSink> sink;
+    if (emit_events) sink = std::make_unique<emit::StdoutSink>();
+    else sink = std::make_unique<emit::UiSink>();
+    auto fail = [&](std::string_view code, std::string_view phase, std::string_view message) {
+        sink->error(code, phase, message);
+        log::error("{}", message);
+        return code == "cancelled" ? 130 : 1;
+    };
+    try {
     // 单实例锁:两个监听循环互踩的破坏是静默的(见 instance_lock 模块头注)。
     auto lock_path = std::filesystem::path(platform::get_rundir()) / ".d2x" / "checker.lock";
     if (!instance_lock::acquire(lock_path, [&](long pid) {
             log::error("另一个 d2x checker (pid {}) 正在此仓库运行;如确认其已退出,删除 {} 后重试",
                        pid, lock_path.string());
         })) {
-        return;
+        return fail("instance_lock", "configuration", "Another checker is already running in this course");
     }
     struct LockGuard { ~LockGuard() { instance_lock::release(); } } lock_guard;
 
@@ -132,17 +141,27 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
     if (command.empty()) {
         log::error("未配置 buildtools —— 请在 .d2x.json 里指定 Provider 命令");
         log::error("例如: \"buildtools\": \"mcpp run -q -p d2x/buildtools/mcpp --\"");
-        return;
+        return fail("configuration", "configuration", "Missing buildtools in .d2x.json");
     }
 
-    // 内置前端走内存通道，外部客户端走管道，二者消费同一套事件类型。
-    std::unique_ptr<emit::IEventSink> sink;
-    if (emit_events) sink = std::make_unique<emit::StdoutSink>();
-    else             sink = std::make_unique<emit::UiSink>();
+    auto logs = std::filesystem::path(platform::get_rundir()) / ".d2x";
+    std::filesystem::create_directories(logs);
+    std::ofstream stdout_log(logs / "provider.stdout.log", std::ios::trunc | std::ios::binary);
+    std::ofstream stderr_log(logs / "provider.stderr.log", std::ios::trunc | std::ios::binary);
+    const int startup_timeout = Config::provider_startup_timeout();
 
     // 活性超时与告警回调经此接入协议层——core 负责配置与日志,机制在 transport。
     auto provider = provider::ProcessProvider(command, provider::TransportOptions{
         .idle_timeout = std::chrono::seconds(Config::provider_idle_timeout()),
+        .startup_timeout = std::chrono::seconds(startup_timeout),
+        .on_startup = [&](std::chrono::seconds elapsed) {
+            sink->preparing(static_cast<int>(elapsed.count()), startup_timeout);
+        },
+        .on_diagnostic = [&](std::string_view bytes, bool is_stderr) {
+            auto& file = is_stderr ? stderr_log : stdout_log;
+            file.write(bytes.data(), bytes.size()); file.flush();
+            if (is_stderr) sink->output(bytes);
+        },
         .on_warning   = [](std::string msg) { log::warning("{}", msg); },
     });
 
@@ -153,14 +172,16 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
     if (!provider.describe(provider_name)) {
         log::error("Provider 无响应: {}", command);
         log::error("请确认该命令可执行，且实现了 d2x Provider 协议（describe/exercises/check）");
-        return;
+        return fail(provider.error_code(), "describe", provider.error() +
+            "\nSee .d2x/provider.stdout.log and .d2x/provider.stderr.log");
     }
     log::info("Provider: {}", provider_name);
 
     auto exercises = provider.exercises();
+    if (!provider.error().empty()) return fail(provider.error_code(), "exercises", provider.error());
     if (exercises.empty()) {
         log::warning("Provider '{}' 没有返回任何练习", provider_name);
-        return;
+        return fail("empty_course", "exercises", "Provider returned no exercises");
     }
 
     auto state   = session::StateStore(state_path());
@@ -201,6 +222,7 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
                 sink->output(std::string_view(verdict.output).substr(streamed));
             }
             sink->verdict(verdict);
+            if (!provider.error().empty()) return fail(provider.error_code(), "check", provider.error());
 
             if (verdict.outcome == Outcome::Pass) break;
 
@@ -234,6 +256,10 @@ export void run(const std::string& start_target = "", bool emit_events = false) 
                   static_cast<int>(session.completed_count()), "");
     sink->done();
     log::info("全部练习已完成 🎉");
+    return 0;
+    } catch (const std::exception& e) {
+        return fail("configuration", "configuration", e.what());
+    }
 }
 
 } // namespace checker

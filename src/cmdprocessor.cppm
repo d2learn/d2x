@@ -125,16 +125,16 @@ int run_book(const cmdline::ParsedArgs& args) {
 }
 
 export int run(int argc, char* argv[]) {
-    int book_exit_code = 0;
+    int command_exit_code = 0;
     // An option builder's action() returns its immediate App. Build this
     // subcommand separately so subsequent commands stay attached to d2x.
     auto book_command = cmdline::App("book");
     book_command.description("open project's book")
         .option("port").short_name('p').takes_value().value_name("PORT")
             .help("book port (1-65535); default: first available in 3000-3099")
-        .action([&book_exit_code](const cmdline::ParsedArgs& a) {
+        .action([&command_exit_code](const cmdline::ParsedArgs& a) {
             apply_global_options(a);
-            book_exit_code = run_book(a);
+            command_exit_code = run_book(a);
         });
     auto app = cmdline::App("d2x")
         .version(std::string(Info::VERSION))
@@ -158,17 +158,17 @@ export int run(int argc, char* argv[]) {
         .subcommand("install")
             .description("install d2x package via xlings")
             .arg("package").required().help("package name")
-            .action([](const cmdline::ParsedArgs& a) {
+            .action([&command_exit_code](const cmdline::ParsedArgs& a) {
                 apply_global_options(a);
-                xlings::install(std::string(a.positional(0)));
+                command_exit_code = xlings::install(std::string(a.positional(0))) ? 0 : 1;
             })
         .subcommand(std::move(book_command))
         .subcommand("checker")
             .description("run checker for d2x project's exercises")
             .arg("target").help("exercise name (substring match)")
-            .action([](const cmdline::ParsedArgs& a) {
+            .action([&command_exit_code](const cmdline::ParsedArgs& a) {
                 apply_global_options(a);
-                checker::run(std::string(a.positional_or(0, "")), a.is_flag_set("emit-events"));
+                command_exit_code = checker::run(std::string(a.positional_or(0, "")), a.is_flag_set("emit-events"));
             })
         .subcommand("status")
             .description("show exercise progress overview (read-only)")
@@ -191,7 +191,7 @@ export int run(int argc, char* argv[]) {
             });
 
     int parse_status = app.run(argc, argv);
-    return parse_status != 0 ? parse_status : book_exit_code;
+    return parse_status != 0 ? parse_status : command_exit_code;
 }
 
 } // namespace d2x::cmdprocessor

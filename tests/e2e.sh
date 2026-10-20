@@ -118,7 +118,7 @@ grep -q "ex-1" "$dir/page.out" || fail "flush: 重定向下页面不可见(13863
 # Provider 报的是绝对路径,而 checker 的 cwd 就是该目录,所以展示路径必须被
 # 压成相对形式,任何情况下都不该以分隔符打头。旧 normalize_path 只掐 '/',
 # Windows 上留下 "\ex1.txt"(Win10/Win11 CI 实测)——这条断言钉死该回归。
-file_val=$(sed -n 's/^File: *//p' "$dir/page.out" | head -1)
+file_val=$(sed -n 's/^File: *//p' "$dir/page.out" | grep 'ex1.txt' | head -1)
 [[ "$file_val" == *ex1.txt ]] \
     || fail "path: 练习页未展示 ex1.txt: '$file_val'"
 [[ "$file_val" != /* && "$file_val" != \\* ]] \

@@ -66,3 +66,31 @@ See the [architecture reference](.agents/docs/2026-07-20-d2x-architecture-refere
 ## Links
 
 [Forum](https://forum.d2learn.org) · [Course index](https://github.com/d2learn/xim-pkgindex-d2x) · [Project template](https://d2learn.github.io/d2x-project-template) · [xlings](https://github.com/openxlings/xlings)
+
+## Provider startup and diagnostics
+
+The first `d2x checker` can build the course Provider and download its toolchain.
+`provider_startup_timeout` bounds the entire initial `describe` command (default
+900 seconds, positive integers only). `D2X_PROVIDER_STARTUP_TIMEOUT` overrides
+project config, global config and the default, in that order. Output does not
+extend this deadline. After startup, `provider_idle_timeout` still limits silence
+in `exercises` / `check` (default 120 seconds; <= 0 disables that idle limit).
+
+Preparation is visible in both built-in UIs. With `--emit-events`, a
+`preparing` event precedes `session` and repeats every ten seconds:
+
+```json
+{"event":"preparing","phase":"describe","elapsed":0,"timeout":900}
+```
+
+Consumers must tolerate preparation and diagnostic `output` events before
+`session`. Initialization and transport failures emit an `error` with `code`,
+`phase`, and `message`, and exit nonzero. Expected exercise failures remain
+`verdict` events and wait for edits. Provider stdout/stderr are saved separately
+in `.d2x/provider.stdout.log` and `.d2x/provider.stderr.log` for the current
+checker invocation; stderr is also displayed live. Logs may contain Provider
+output and should be checked before sharing. Timeout/interrupt terminates the
+child process tree. Ctrl+C during a Provider call returns 130.
+
+See [the startup/transport contract](docs/provider-startup.md) for error codes,
+compatibility and failure-injection commands.

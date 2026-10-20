@@ -55,6 +55,16 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Session tests
+        run: mcpp test
+
+      - name: Startup deadline and failure integration tests
+        shell: bash
+        run: |
+          D2X="$PWD/$(find target -type f \( -name d2x -o -name d2x.exe \) | head -1)"
+          if command -v cygpath >/dev/null; then D2X="$(cygpath -m "$D2X")"; fi
+          D2X="$D2X" python tests/startup_test.py
+
       - name: Book port integration tests
         shell: bash
         run: |
@@ -68,6 +78,14 @@ jobs:
         run: |
           D2X="$PWD/$(find target -name d2x -type f | head -1)"
           D2X="$D2X" bash tests/e2e.sh
+
+      - name: Stage candidate with provenance
+        shell: bash
+        run: python tests/stage_candidate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-linux-x86_64
+          path: candidate/
 
   build-macos:
     name: build (${{ matrix.os }}, mcpp)
@@ -104,12 +122,31 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Session tests
+        run: mcpp test
+
+      - name: Startup deadline and failure integration tests
+        shell: bash
+        run: |
+          D2X="$PWD/$(find target -type f \( -name d2x -o -name d2x.exe \) | head -1)"
+          if command -v cygpath >/dev/null; then D2X="$(cygpath -m "$D2X")"; fi
+          D2X="$D2X" python tests/startup_test.py
+
       - name: Book port integration tests
         shell: bash
         run: |
           D2X="$PWD/$(find target -type f \( -name d2x -o -name d2x.exe \) | head -1)"
           if command -v cygpath >/dev/null; then D2X="$(cygpath -m "$D2X")"; fi
           D2X="$D2X" python tests/book_test.py
+
+
+      - name: Stage candidate with provenance
+        shell: bash
+        run: python tests/stage_candidate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-${{ matrix.os }}
+          path: candidate/
 
   # Windows 10 / 11 两条产品线。
   #
@@ -162,6 +199,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Session tests
+        run: mcpp test
+
+      - name: Startup deadline and failure integration tests
+        shell: bash
+        run: |
+          D2X="$PWD/$(find target -type f \( -name d2x -o -name d2x.exe \) | head -1)"
+          if command -v cygpath >/dev/null; then D2X="$(cygpath -m "$D2X")"; fi
+          D2X="$D2X" python tests/startup_test.py
 
       - name: Book port integration tests
         shell: bash
@@ -246,6 +293,15 @@ jobs:
             echo "FAIL: Provider 又踩到 cmd.exe 的 /dev/null 重定向(d2mcpp 回归)"
             exit 1
           fi
+
+
+      - name: Stage candidate with provenance
+        shell: bash
+        run: python tests/stage_candidate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-${{ matrix.os }}
+          path: candidate/
 
   # Smoke test: a real `d2x checker` run against the d2mcpp course must reach
   # and report the FIRST exercise's build error within a bounded window, rather

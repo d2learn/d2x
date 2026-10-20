@@ -1,292 +1,227 @@
-// d2x.protocol.process — 协议传输的进程运行原语。
-//
-// 协议层自带最小的「逐行读子进程输出」能力,不依赖 d2x core 的 platform
-// 模块——依赖方向必须是 core → protocol,不能反过来。
+// Child-process transport. stdout is protocol input; stderr is diagnostics.
 module;
-
 #include <cstdio>
 #include <cstdlib>
+#include <cerrno>
 #ifndef _WIN32
-#  include <sys/wait.h>
-#  include <unistd.h>
-#  include <fcntl.h>
-#  include <poll.h>
-#  include <signal.h>
+# include <sys/wait.h>
+# include <unistd.h>
+# include <fcntl.h>
+# include <signal.h>
 #else
-#  define WIN32_LEAN_AND_MEAN
-#  define NOMINMAX            // 否则 windows.h 的 min/max 宏会撞上标准库
-#  include <windows.h>
+# define WIN32_LEAN_AND_MEAN
+# define NOMINMAX
+# include <windows.h>
 #endif
-
 export module d2x.protocol.process;
-
 import std;
 
 namespace d2x::protocol::process {
-
-// 运行结果:exit_code 为平台归一化退出码(信号终止 → 128+sig);
-// idle_killed 表示因活性超时被终止。
 export struct RunStatus {
-    int  exit_code   = 0;
+    int exit_code = 0;
     bool idle_killed = false;
+    bool deadline_killed = false;
+    bool cancelled = false;
 };
 
-#ifndef _WIN32
+#ifdef _WIN32
+volatile LONG interrupted = 0;
+BOOL WINAPI interrupt_handler(DWORD event) {
+    if (event != CTRL_C_EVENT && event != CTRL_BREAK_EVENT) return FALSE;
+    ::InterlockedExchange(&interrupted, 1);
+    return TRUE;
+}
+#else
+volatile sig_atomic_t interrupted = 0;
+void interrupt_handler(int) { interrupted = 1; }
 int normalize(int status) {
-    if (status == -1)        return 127;
-    if (WIFEXITED(status))   return WEXITSTATUS(status);
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
     if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
-    return status;
+    return 127;
 }
 #endif
 
-// 逐行运行(无超时)。stderr 并入 stdout;行尾 \n/\r\n 归一剥除;
-// 结尾不带换行的最后一行同样回调。
-//
-// spawn 前清空 LD_LIBRARY_PATH:Provider 链路曾因继承的私有 glibc loader
-// 路径在嵌套进程里段错误(mcpp >= 0.0.104 已在其侧根治,这里保留是因为
-// 该保护对任意 Provider 启动器成立,不只 mcpp)。
-export RunStatus run_lines(const std::string& cmd,
-                           const std::function<void(std::string_view)>& on_line) {
-#ifndef _WIN32
-    ::setenv("LD_LIBRARY_PATH", "", 1);
-#endif
-    std::string full = cmd + " 2>&1";
-#ifdef _WIN32
-    FILE* pipe = ::_popen(full.c_str(), "r");
-#else
-    FILE* pipe = ::popen(full.c_str(), "r");
-#endif
-    if (!pipe) return {127, false};
-
+// The absolute deadline is independent of bytes received and host UI ticks.
+// Drain only a bounded batch per poll so endless output cannot starve deadlines.
+export RunStatus run_streams(const std::string& cmd,
+    std::chrono::milliseconds idle, std::chrono::milliseconds deadline,
+    const std::function<void(std::string_view)>& on_line,
+    const std::function<void(std::string_view, bool)>& on_bytes = {},
+    const std::function<void(std::chrono::seconds)>& on_tick = {}) {
+    auto started = std::chrono::steady_clock::now();
+    auto last_output = started;
+    auto next_tick = started;
     std::string line;
-    std::array<char, 4096> buffer{};
-    while (std::fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        line += buffer.data();
-        if (line.ends_with('\n')) {
-            line.pop_back();
-            if (line.ends_with('\r')) line.pop_back();
-            on_line(line);
-            line.clear();
-        }
-    }
-    if (!line.empty()) on_line(line);
-
-#ifdef _WIN32
-    int status = ::_pclose(pipe);
-    return {status == -1 ? 127 : status, false};
-#else
-    return {normalize(::pclose(pipe)), false};
-#endif
-}
-
-// 逐行运行 + 活性超时:自上次收到任何输出起超过 idle 时长即判定挂死,
-// 终止整棵进程树并返回 idle_killed=true。固定总时长会误杀 Provider 的
-// 冷启动构建(可达分钟级),活性模型只要求「持续有产出」。
-//
-// 两个平台的做法不同但语义一致 ——「杀掉整棵进程树,而不只是直接子进程」:
-// POSIX 用独立进程组 + kill(-pid),Windows 用 Job Object。Provider 往往还有
-// 孙进程(mcpp → 编译器),只杀直接子进程会留下孤儿继续占用产物目录。
-export RunStatus run_lines_idle(const std::string& cmd,
-                                std::chrono::milliseconds idle,
-                                const std::function<void(std::string_view)>& on_line) {
-    if (idle.count() <= 0) return run_lines(cmd, on_line);
-#ifdef _WIN32
-    // 不用 _popen:它拿不到进程句柄,超时了无从终止。改为 CreateProcess 起
-    // cmd.exe,并把进程纳入 Job Object —— Job Object 是 Windows 上终止整棵
-    // 进程树的正规手段,对应 POSIX 分支的 kill(-pid)。
-    //
-    // 命令行走 ANSI 版 API,与本文件 run_lines 里的 _popen 保持一致(两者都
-    // 按当前代码页解释);统一改 UTF-16 是另一件事,不在这里顺手做。
-    SECURITY_ATTRIBUTES sa{};
-    sa.nLength        = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-
-    HANDLE rd = nullptr, wr = nullptr;
-    if (!::CreatePipe(&rd, &wr, &sa, 0)) return {127, false};
-    // 读端不让子进程继承:否则管道多出一个写者,子进程退出也读不到 EOF。
-    ::SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
-
-    STARTUPINFOA si{};
-    si.cb         = sizeof(si);
-    si.dwFlags    = STARTF_USESTDHANDLES;
-    si.hStdOutput = wr;
-    si.hStdError  = wr;          // stderr 并入 stdout,与 run_lines 的 2>&1 一致
-    si.hStdInput  = ::GetStdHandle(STD_INPUT_HANDLE);
-
-    // CreateProcess 会就地改写命令行缓冲区,必须传可写副本。
-    std::string full = "cmd.exe /C " + cmd;
-    std::vector<char> cmdline(full.begin(), full.end());
-    cmdline.push_back('\0');
-
-    PROCESS_INFORMATION pi{};
-    // CREATE_SUSPENDED:先挂起,纳入 Job 之后再放行 —— 否则子进程可能在被
-    // 纳管之前就派生出逃逸在 Job 之外的孙进程。
-    BOOL ok = ::CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, TRUE,
-                               CREATE_SUSPENDED | CREATE_NO_WINDOW,
-                               nullptr, nullptr, &si, &pi);
-    ::CloseHandle(wr);           // 父进程手里这份写端必须关,否则永远读不到 EOF
-    if (!ok) { ::CloseHandle(rd); return {127, false}; }
-
-    HANDLE job = ::CreateJobObjectW(nullptr, nullptr);
-    if (job) {
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION jl{};
-        jl.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        ::SetInformationJobObject(job, JobObjectExtendedLimitInformation, &jl, sizeof(jl));
-        if (!::AssignProcessToJobObject(job, pi.hProcess)) {
-            // 纳管失败(例如已处在不可嵌套的 Job 里):退化成只杀直接子进程。
-            // 比完全不超时好 —— 至少 d2x 自己不会跟着挂死。
-            ::CloseHandle(job);
-            job = nullptr;
-        }
-    }
-    ::ResumeThread(pi.hThread);
-    ::CloseHandle(pi.hThread);
-
-    std::string line;
-    std::array<char, 4096> buffer{};
-    auto last_output = std::chrono::steady_clock::now();
-    bool killed    = false;
-    bool escalated = false;
-    std::chrono::steady_clock::time_point kill_at{};
-
-    auto emit = [&](DWORD n) {
-        for (DWORD i = 0; i < n; ++i) {
-            char c = buffer[static_cast<std::size_t>(i)];
+    bool oversized = false;
+    RunStatus result;
+    auto consume = [&](std::string_view bytes, bool stderr_stream) {
+        if (on_bytes) on_bytes(bytes, stderr_stream);
+        if (stderr_stream) return;
+        for (char c : bytes) {
             if (c == '\n') {
-                if (line.ends_with('\r')) line.pop_back();
-                on_line(line);
+                if (!oversized) {
+                    if (line.ends_with('\r')) line.pop_back();
+                    on_line(line);
+                }
                 line.clear();
-            } else {
-                line += c;
-            }
+                oversized = false;
+            } else if (line.size() < 1024 * 1024) line += c;
+            else oversized = true;
         }
     };
-
-    // 全程 PeekNamedPipe 探量再读,绝不裸调 ReadFile —— 管道读是阻塞的,
-    // 挂死的 Provider 会把这里一起拖住,活性超时就永远轮不到判定。
-    auto drain = [&]() -> bool {   // 返回是否读到了任何数据
-        bool got = false;
-        for (;;) {
-            DWORD avail = 0;
-            if (!::PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;
-            if (avail == 0) break;
-            DWORD want = avail < buffer.size() ? avail : static_cast<DWORD>(buffer.size());
-            DWORD n = 0;
-            if (!::ReadFile(rd, buffer.data(), want, &n, nullptr) || n == 0) break;
-            got = true;
-            emit(n);
-        }
-        return got;
-    };
-
-    for (;;) {
-        if (drain()) last_output = std::chrono::steady_clock::now();
-
-        if (::WaitForSingleObject(pi.hProcess, 0) == WAIT_OBJECT_0) {
-            drain();                       // 收尾:进程已退,管道里可能还有残留
-            if (!line.empty()) on_line(line);
-            DWORD code = 0;
-            ::GetExitCodeProcess(pi.hProcess, &code);
-            ::CloseHandle(pi.hProcess);
-            ::CloseHandle(rd);
-            if (job) ::CloseHandle(job);
-            return {static_cast<int>(code), killed};
-        }
-
+    auto should_stop = [&] {
         auto now = std::chrono::steady_clock::now();
-
-        if (!killed && now - last_output > idle) {
-            if (job) ::TerminateJobObject(job, 1);      // 整棵进程树
-            else     ::TerminateProcess(pi.hProcess, 1);
-            killed = true;
-            kill_at = now;
+        if (on_tick && now >= next_tick) {
+            on_tick(std::chrono::duration_cast<std::chrono::seconds>(now - started));
+            next_tick = now + std::chrono::seconds(10);
         }
-
-        // 终止之后进程仍不退出,就不能一直等下去 —— 这个循环存在的意义就是
-        // 防止挂死,它自己挂死是最糟的结局。分两级兜底:先补一次直杀(Job
-        // 路径被拒时还有救),再到点就放弃等待、如实返回 idle_killed,由上层
-        // 报「Provider 被终止」。退出码沿用 POSIX 分支被 KILL 时的 128+9。
-        if (killed) {
-            auto since_kill = now - kill_at;
-            if (!escalated && since_kill > std::chrono::seconds(5)) {
-                ::TerminateProcess(pi.hProcess, 1);
-                escalated = true;
-            }
-            if (since_kill > std::chrono::seconds(15)) {
-                ::CloseHandle(pi.hProcess);
-                ::CloseHandle(rd);
-                if (job) ::CloseHandle(job);   // KILL_ON_JOB_CLOSE 再补一刀
-                return {137, true};
-            }
+        result.cancelled = interrupted != 0;
+        result.deadline_killed = deadline.count() > 0 && now - started >= deadline;
+        result.idle_killed = idle.count() > 0 && now - last_output >= idle;
+        return result.cancelled || result.deadline_killed || result.idle_killed;
+    };
+#ifdef _WIN32
+    SECURITY_ATTRIBUTES sa{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE rd[2]{}, wr[2]{};
+    auto close_pipes = [&] {
+        for (int i = 0; i < 2; ++i) {
+            if (rd[i]) ::CloseHandle(rd[i]);
+            if (wr[i]) ::CloseHandle(wr[i]);
         }
+    };
+    for (int i = 0; i < 2; ++i) {
+        if (!::CreatePipe(&rd[i], &wr[i], &sa, 0)) {
+            close_pipes(); return {127};
+        }
+        ::SetHandleInformation(rd[i], HANDLE_FLAG_INHERIT, 0);
+    }
+    HANDLE job = ::CreateJobObjectW(nullptr, nullptr);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!job || !::SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+        if (job) ::CloseHandle(job);
+        close_pipes(); return {127};
+    }
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = wr[0]; si.hStdError = wr[1];
+    si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+    std::string full = "cmd.exe /D /S /C \"" + cmd + "\"";
+    std::vector<char> command(full.begin(), full.end()); command.push_back('\0');
+    PROCESS_INFORMATION pi{};
+    BOOL ok = ::CreateProcessA(nullptr, command.data(), nullptr, nullptr, TRUE,
+        CREATE_SUSPENDED | CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    for (auto& w : wr) { ::CloseHandle(w); w = nullptr; }
+    if (!ok) { ::CloseHandle(job); close_pipes(); return {127}; }
+    // Never run an uncontained child: assignment failure must fail closed.
+    if (!::AssignProcessToJobObject(job, pi.hProcess)) {
+        ::TerminateProcess(pi.hProcess, 127);
+        ::WaitForSingleObject(pi.hProcess, INFINITE);
+        ::CloseHandle(pi.hThread); ::CloseHandle(pi.hProcess);
+        ::CloseHandle(job); close_pipes(); return {127};
+    }
+    ::InterlockedExchange(&interrupted, 0);
+    ::SetConsoleCtrlHandler(interrupt_handler, TRUE);
+    ::ResumeThread(pi.hThread); ::CloseHandle(pi.hThread);
+    auto drain = [&](int channel) {
+        std::array<char, 4096> buf{};
+        for (int batch = 0; batch < 16; ++batch) {
+            DWORD available = 0, n = 0;
+            if (!::PeekNamedPipe(rd[channel], nullptr, 0, nullptr, &available, nullptr) || !available) break;
+            if (!::ReadFile(rd[channel], buf.data(), std::min<DWORD>(available, buf.size()), &n, nullptr) || !n) break;
+            last_output = std::chrono::steady_clock::now();
+            consume(std::string_view(buf.data(), n), channel == 1);
+        }
+    };
+    for (;;) {
+        drain(0); drain(1);
+        // Check deadlines even when the shell has just exited.
+        if (should_stop()) {
+            ::TerminateJobObject(job, 1);
+            ::WaitForSingleObject(pi.hProcess, INFINITE);
+            break;
+        }
+        if (::WaitForSingleObject(pi.hProcess, 0) == WAIT_OBJECT_0) break;
         ::Sleep(50);
     }
+    // Close the job to stop descendants retaining pipes after the shell exits.
+    ::TerminateJobObject(job, 1);
+    drain(0); drain(1);
+    DWORD code = 127; ::GetExitCodeProcess(pi.hProcess, &code);
+    result.exit_code = static_cast<int>(code);
+    ::CloseHandle(pi.hProcess); ::CloseHandle(job); close_pipes();
+    ::SetConsoleCtrlHandler(interrupt_handler, FALSE);
 #else
-    ::setenv("LD_LIBRARY_PATH", "", 1);
-    // popen 无法拿到 pid,这里手工 fork + exec sh -c,子进程自成进程组,
-    // 超时可以杀掉整组(Provider 往往还有孙进程,只杀直接子进程会留孤儿)。
-    int fds[2];
-    if (::pipe(fds) != 0) return {127, false};
-
+    int fds[2][2]{{-1, -1}, {-1, -1}};
+    auto close_pipes = [&] {
+        for (auto& pair : fds) for (int fd : pair) if (fd >= 0) ::close(fd);
+    };
+    if (::pipe(fds[0]) || ::pipe(fds[1])) { close_pipes(); return {127}; }
+    struct sigaction action{}, old_int{}, old_term{};
+    action.sa_handler = interrupt_handler;
+    sigemptyset(&action.sa_mask);
+    interrupted = 0;
+    ::sigaction(SIGINT, &action, &old_int); ::sigaction(SIGTERM, &action, &old_term);
     pid_t pid = ::fork();
-    if (pid < 0) { ::close(fds[0]); ::close(fds[1]); return {127, false}; }
     if (pid == 0) {
         ::setpgid(0, 0);
-        ::dup2(fds[1], 1);
-        ::dup2(fds[1], 2);
-        ::close(fds[0]);
-        ::close(fds[1]);
+        ::sigaction(SIGINT, &old_int, nullptr); ::sigaction(SIGTERM, &old_term, nullptr);
+        ::dup2(fds[0][1], STDOUT_FILENO); ::dup2(fds[1][1], STDERR_FILENO);
+        close_pipes();
+        ::unsetenv("LD_LIBRARY_PATH");
         ::execl("/bin/sh", "sh", "-c", cmd.c_str(), static_cast<char*>(nullptr));
         ::_exit(127);
     }
-    ::close(fds[1]);
-    ::fcntl(fds[0], F_SETFL, ::fcntl(fds[0], F_GETFL) | O_NONBLOCK);
-
-    std::string line;
-    std::array<char, 4096> buffer{};
-    auto last_output = std::chrono::steady_clock::now();
-    bool killed = false;
-
-    auto drain = [&]() -> bool {   // 返回是否读到了任何数据
-        bool got = false;
-        for (;;) {
-            ssize_t n = ::read(fds[0], buffer.data(), buffer.size());
+    if (pid < 0) {
+        close_pipes();
+        ::sigaction(SIGINT, &old_int, nullptr); ::sigaction(SIGTERM, &old_term, nullptr);
+        return {127};
+    }
+    ::setpgid(pid, pid); // close the parent/child process-group race
+    for (auto& pair : fds) {
+        ::close(pair[1]); pair[1] = -1;
+        ::fcntl(pair[0], F_SETFL, ::fcntl(pair[0], F_GETFL) | O_NONBLOCK);
+    }
+    auto drain = [&](int channel) {
+        std::array<char, 4096> buf{};
+        for (int batch = 0; batch < 16; ++batch) {
+            auto n = ::read(fds[channel][0], buf.data(), buf.size());
             if (n <= 0) break;
-            got = true;
-            for (ssize_t i = 0; i < n; ++i) {
-                char c = buffer[static_cast<std::size_t>(i)];
-                if (c == '\n') {
-                    if (line.ends_with('\r')) line.pop_back();
-                    on_line(line);
-                    line.clear();
-                } else {
-                    line += c;
-                }
-            }
+            last_output = std::chrono::steady_clock::now();
+            consume(std::string_view(buf.data(), static_cast<std::size_t>(n)), channel == 1);
         }
-        return got;
     };
-
     int status = 0;
     for (;;) {
-        struct pollfd pfd{fds[0], POLLIN, 0};
-        ::poll(&pfd, 1, 200);
-        if (drain()) last_output = std::chrono::steady_clock::now();
-
-        pid_t r = ::waitpid(pid, &status, WNOHANG);
-        if (r == pid) {
-            drain();
-            if (!line.empty()) on_line(line);
-            ::close(fds[0]);
-            return {normalize(status), killed};
+        drain(0); drain(1);
+        if (should_stop()) {
+            ::kill(-pid, SIGKILL);
+            while (::waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+            break;
         }
-        if (!killed && std::chrono::steady_clock::now() - last_output > idle) {
-            ::kill(-pid, SIGKILL);   // 整个进程组
-            killed = true;
-        }
+        auto waited = ::waitpid(pid, &status, WNOHANG);
+        if (waited == pid) break;
+        if (waited < 0 && errno != EINTR) { status = -1; break; }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
+    ::kill(-pid, SIGKILL);
+    drain(0); drain(1); close_pipes();
+    ::sigaction(SIGINT, &old_int, nullptr); ::sigaction(SIGTERM, &old_term, nullptr);
+    result.exit_code = status == -1 ? 127 : normalize(status);
 #endif
+    if (!line.empty() && !oversized) on_line(line);
+    if (result.cancelled) result.exit_code = 130;
+    else if (result.deadline_killed || result.idle_killed) result.exit_code = 124;
+    return result;
 }
 
+export RunStatus run_lines_idle(const std::string& cmd, std::chrono::milliseconds idle,
+    const std::function<void(std::string_view)>& on_line) {
+    return run_streams(cmd, idle, {}, on_line);
+}
+export RunStatus run_lines(const std::string& cmd,
+    const std::function<void(std::string_view)>& on_line) {
+    return run_streams(cmd, {}, {}, on_line);
+}
 } // namespace d2x::protocol::process
