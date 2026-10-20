@@ -55,6 +55,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Session tests
+        run: mcpp test
+
       - name: Startup deadline and failure integration tests
         shell: bash
         run: |
@@ -118,6 +121,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Session tests
+        run: mcpp test
 
       - name: Startup deadline and failure integration tests
         shell: bash
@@ -193,6 +199,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Session tests
+        run: mcpp test
 
       - name: Startup deadline and failure integration tests
         shell: bash

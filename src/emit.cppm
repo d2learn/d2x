@@ -50,7 +50,7 @@ public:
 // VSCode 插件、Web 前端、CI 都只是这条流的消费者，不需要链接 d2x。
 export class StdoutSink final : public IEventSink {
     static void line(const nlohmann::json& ev) {
-        std::println("{}", ev.dump());
+        std::println("{}", ev.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
         std::fflush(stdout);   // 前端是逐行读的，缓冲会让实时性失效
     }
 

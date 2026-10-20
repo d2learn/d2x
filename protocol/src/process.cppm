@@ -160,7 +160,7 @@ export RunStatus run_streams(const std::string& cmd,
     if (::pipe(fds[0]) || ::pipe(fds[1])) { close_pipes(); return {127}; }
     struct sigaction action{}, old_int{}, old_term{};
     action.sa_handler = interrupt_handler;
-    ::sigemptyset(&action.sa_mask);
+    sigemptyset(&action.sa_mask);
     interrupted = 0;
     ::sigaction(SIGINT, &action, &old_int); ::sigaction(SIGTERM, &action, &old_term);
     pid_t pid = ::fork();
