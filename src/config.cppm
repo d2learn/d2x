@@ -17,7 +17,7 @@ export struct EnvVars;
 export class Config;
 
 struct Info {
-    static constexpr std::string_view VERSION = "2026.10.20.1";   // 日期版本制 YYYY.MM.DD.N(见 2026-07-24 设计文档决策记录)
+    static constexpr std::string_view VERSION = "2026.10.20.2";   // 日期版本制 YYYY.MM.DD.N(见 2026-07-24 设计文档决策记录)
     static constexpr std::string_view REPO = "https://github.com/d2learn/d2x";
 };
 
@@ -69,6 +69,7 @@ public:
         std::string editor;
         bool        editor_is_set{false};   // 区分「未配置」与「显式配成空串（=关闭）」
         int         provider_idle_timeout{120};   // 秒;<=0 关闭活性超时
+        std::optional<nlohmann::json> provider_startup_timeout;
         std::optional<nlohmann::json> book_port; // preserve the field, including its type
         LLMConfig llm;
 
@@ -228,6 +229,29 @@ public:
         return (std::filesystem::path(platform::get_rundir()) / ".d2x.json").string();
     }
 
+    // Resolve lazily: timeout errors must not break unrelated book/config commands.
+    [[nodiscard]] static int provider_startup_timeout() {
+        auto parse = [](std::string_view text) {
+            int seconds{};
+            auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), seconds);
+            if (ec != std::errc{} || end != text.data() + text.size() || seconds <= 0)
+                throw std::runtime_error("provider_startup_timeout must be a positive integer in seconds");
+            return seconds;
+        };
+        if (const char* env = std::getenv("D2X_PROVIDER_STARTUP_TIMEOUT")) return parse(env);
+        for (auto scope : {Scope::Local, Scope::Global}) {
+            auto path = get_config_path(scope);
+            if (!std::filesystem::exists(path)) continue;
+            auto json = nlohmann::json::parse(std::ifstream(path));
+            if (!json.contains("provider_startup_timeout")) continue;
+            auto& value = json["provider_startup_timeout"];
+            if (!value.is_number_integer())
+                throw std::runtime_error("provider_startup_timeout must be an integer in " + path);
+            return parse(value.dump());
+        }
+        return 900;
+    }
+
     struct BookPort {
         int value;
         std::string source;
@@ -299,6 +323,8 @@ public:
             cfg.ui_backend = json.value("ui_backend", "");
             cfg.buildtools = json.value("buildtools", "");
             if (json.contains("book_port")) cfg.book_port = json["book_port"];
+            if (json.contains("provider_startup_timeout")) cfg.provider_startup_timeout = json["provider_startup_timeout"];
+            cfg.provider_idle_timeout = json.value("provider_idle_timeout", 120);
 
             // Load LLM config from nested "llm" object
             if (json.contains("llm") && json["llm"].is_object()) {
@@ -338,6 +364,8 @@ public:
         json["ui_backend"] = cfg.ui_backend;
         json["buildtools"] = cfg.buildtools;
         if (cfg.book_port) json["book_port"] = *cfg.book_port;
+        if (cfg.provider_startup_timeout) json["provider_startup_timeout"] = *cfg.provider_startup_timeout;
+        json["provider_idle_timeout"] = cfg.provider_idle_timeout;
 
         // Save LLM config to nested "llm" object
         nlohmann::json llm_json;
@@ -400,6 +428,8 @@ public:
         // Collect new config
         ConfigData new_cfg;
         new_cfg.book_port = cfg.book_port;
+        new_cfg.provider_startup_timeout = cfg.provider_startup_timeout;
+        new_cfg.provider_idle_timeout = cfg.provider_idle_timeout;
         new_cfg.lang = utils::ask_input("Language (zh/en/auto)", cfg.lang.empty() ? std::string{ConfigData::DEFAULT_LANG} : cfg.lang);
         new_cfg.ui_backend = utils::ask_input("UI Backend", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
         new_cfg.buildtools = utils::ask_input("BuildTools", cfg.buildtools.empty() ? std::string{ConfigData::DEFAULT_BUILDTOOLS} : cfg.buildtools);
@@ -425,6 +455,8 @@ public:
         std::println("  lang:         {}", cfg.lang.empty() ? "(自动检测)" : cfg.lang);
         std::println("  ui_backend:   {}", cfg.ui_backend.empty() ? std::string{ConfigData::DEFAULT_UI_BACKEND} : cfg.ui_backend);
         std::println("  buildtools:   {}", cfg.buildtools.empty() ? std::string{ConfigData::DEFAULT_BUILDTOOLS} : cfg.buildtools);
+        std::println("  provider_startup_timeout: {}", cfg.provider_startup_timeout ? cfg.provider_startup_timeout->dump() : "900");
+        std::println("  provider_idle_timeout: {}", cfg.provider_idle_timeout);
         std::println("  book_port:    {}", cfg.book_port ? cfg.book_port->dump() : "(auto: 3000-3099)");
         std::println("  llm.api_key:      {}", cfg.llm.api_key.empty() ? "(未设置)" : cfg.llm.api_key.substr(0, 10) + "...");
         std::println("  llm.api_url:      {}", cfg.llm.api_url.empty() ? "(未设置)" : cfg.llm.api_url);

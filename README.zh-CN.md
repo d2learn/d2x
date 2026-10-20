@@ -64,3 +64,22 @@ cd d2mcpp && d2x checker     # 开始学习——编辑、保存,自动重测并
 ## 链接
 
 [论坛](https://forum.d2learn.org) · [课程索引](https://github.com/d2learn/xim-pkgindex-d2x) · [项目模板](https://d2learn.github.io/d2x-project-template) · [xlings](https://github.com/openxlings/xlings)
+
+## Provider 首次启动与诊断
+
+首次 `d2x checker` 可能需要构建课程 Provider 和准备工具链。
+`provider_startup_timeout` 控制初次 `describe` 的总期限，默认 900 秒，必须为正整数。
+优先级为 `D2X_PROVIDER_STARTUP_TIMEOUT` 环境变量、本地配置、全局配置、默认值。
+输出不会延长期限。后续 `exercises` / `check` 仍使用 `provider_idle_timeout`
+限制静默，默认 120 秒；该 idle 值 <= 0 时关闭静默限制。
+
+print/TUI 会显示准备信息。`--emit-events` 在 session 前每十秒发送一次
+`preparing`，stderr 以 output 事件展示；外部前端应允许这些事件先于 session。
+初始化或传输失败产生带 `code`、`phase`、`message` 的 error 事件并非零退出；
+练习本身未通过仍产生 verdict 并等待修改。
+
+本轮 checker 的 Provider 原始输出分别保存在 `.d2x/provider.stdout.log` 和
+`.d2x/provider.stderr.log`，stderr 同时实时呈现。分享前请检查日志内容。
+超时或调用期间取消会终止子进程树；调用期间 Ctrl+C 返回 130。
+
+详见 [启动与传输契约](docs/provider-startup.md)。

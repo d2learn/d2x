@@ -33,6 +33,8 @@ export class IEventSink {
 public:
     virtual ~IEventSink() = default;
 
+    virtual void preparing(int elapsed, int timeout) = 0;
+    virtual void error(std::string_view code, std::string_view phase, std::string_view message) = 0;
     virtual void session(int total, int completed, std::string_view current) = 0;
     virtual void exercise(const Exercise& ex) = 0;
     virtual void stage(std::string_view name) = 0;
@@ -53,6 +55,12 @@ export class StdoutSink final : public IEventSink {
     }
 
 public:
+    void preparing(int elapsed, int timeout) override {
+        line({{"event", "preparing"}, {"phase", "describe"}, {"elapsed", elapsed}, {"timeout", timeout}});
+    }
+    void error(std::string_view code, std::string_view phase, std::string_view message) override {
+        line({{"event", "error"}, {"code", code}, {"phase", phase}, {"message", message}});
+    }
     void session(int total, int completed, std::string_view current) override {
         line({{"event", "session"}, {"total", total},
               {"completed", completed}, {"current", current}});
@@ -130,6 +138,16 @@ export class UiSink final : public IEventSink {
     }
 
 public:
+    void preparing(int elapsed, int timeout) override {
+        mStage = "preparing";
+        mOutput = std::format("Preparing course environment; first use may take several minutes.\nWaiting: {}s / {}s", elapsed, timeout);
+        refresh();
+    }
+    void error(std::string_view code, std::string_view phase, std::string_view message) override {
+        mStage.assign(phase); mOutcome = "error";
+        mOutput = std::format("{}: {}", code, message);
+        refresh();
+    }
     void session(int total, int completed, std::string_view current) override {
         mTotal = total;
         mCompleted = completed;

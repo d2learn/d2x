@@ -86,6 +86,21 @@ export bool install(const std::string& pkgname) {
         return true;
     }
 
+    // Course packages are source downloads. Resolve their declared workspace
+    // tools in the downloaded directory before claiming the course is ready.
+    auto course = std::filesystem::path(pkgname);
+    if (std::filesystem::exists(course / ".xlings.json")) {
+        auto original = std::filesystem::current_path();
+        struct Restore { std::filesystem::path path; ~Restore() {
+            std::error_code ec; std::filesystem::current_path(path, ec);
+        }} restore{original};
+        std::filesystem::current_path(course);
+        int deps = platform::normalize_exit_status(platform::exec("xlings install -y"));
+        if (deps != 0) {
+            std::println(stderr, "error: Course dependencies failed (exit {}). Enter {} and retry xlings install -y.", deps, pkgname);
+            return false;
+        }
+    }
     std::println("");
     std::println("安装完成。开始练习:");
     std::println("  cd {} && d2x checker", pkgname);

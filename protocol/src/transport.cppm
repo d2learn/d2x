@@ -58,6 +58,9 @@ export std::string shell_quote(std::string_view s) {
 export struct TransportOptions {
     // 活性超时:自上次输出起的最大静默时长;<=0 关闭。
     std::chrono::milliseconds idle_timeout{std::chrono::seconds(120)};
+    std::chrono::milliseconds startup_timeout{std::chrono::seconds(900)};
+    std::function<void(std::chrono::seconds)> on_startup;
+    std::function<void(std::string_view, bool)> on_diagnostic;
     // 协议层不依赖宿主日志——异常路径经回调上报(跳过的练习、超时终止等)。
     std::function<void(std::string)> on_warning;
 };
@@ -71,20 +74,48 @@ export class ProcessProvider final : public IExerciseProvider {
         if (mOpts.on_warning) mOpts.on_warning(std::move(msg));
     }
 
-    // 单次调用;逐行回调。返回运行状态(退出码 + 是否被活性超时终止)。
+    std::string mError;
+    std::string mErrorCode;
+    bool mCancelled = false;
+
     process::RunStatus invoke(std::string_view args,
-        const std::function<void(const nlohmann::json&)>& on_event) const {
-        auto status = process::run_lines_idle(
-            std::format("{} {}", mCommand, args), mOpts.idle_timeout,
+        const std::function<void(const nlohmann::json&)>& on_event) {
+        mError.clear(); mErrorCode.clear(); mCancelled = false;
+        std::string out_tail, err_tail;
+        bool protocol_error = false;
+        auto start = std::chrono::steady_clock::now();
+        const bool startup = args == "describe";
+        auto status = process::run_streams(
+            std::format("{} {}", mCommand, args),
+            startup ? std::chrono::milliseconds(0) : mOpts.idle_timeout,
+            startup ? mOpts.startup_timeout : std::chrono::milliseconds(0),
             [&](std::string_view line) {
-                // 非 JSON 行静默丢弃:启动器噪声是预期内的常态,不是异常。
-                if (auto ev = codec::parse_event(line)) on_event(*ev);
-            });
-        if (status.idle_killed) {
-            warn(std::format(
-                "provider idle-timeout: no output for {}s while running '{} {}' — killed",
-                std::chrono::duration_cast<std::chrono::seconds>(mOpts.idle_timeout).count(),
-                mCommand, args));
+                if (auto ev = codec::parse_event(line)) {
+                    try {
+                        if (ev->value("event", "") == "error") protocol_error = true;
+                        on_event(*ev);
+                    } catch (const nlohmann::json::exception&) { protocol_error = true; }
+                }
+            },
+            [&](std::string_view bytes, bool is_stderr) {
+                auto& tail = is_stderr ? err_tail : out_tail;
+                tail.append(bytes);
+                if (tail.size() > 8192) tail.erase(0, tail.size() - 8192);
+                if (mOpts.on_diagnostic) mOpts.on_diagnostic(bytes, is_stderr);
+            }, startup ? mOpts.on_startup : std::function<void(std::chrono::seconds)>{});
+        mCancelled = status.cancelled;
+        if (status.cancelled) mErrorCode = "cancelled";
+        else if (status.deadline_killed) mErrorCode = "startup_timeout";
+        else if (status.idle_killed) mErrorCode = "idle_timeout";
+        else if (status.exit_code != 0) mErrorCode = "provider_exit";
+        else if (protocol_error) mErrorCode = "provider_protocol";
+        if (!mErrorCode.empty()) {
+            mError = std::format(
+                "Provider {}: command='{} {}', cwd='{}', elapsed={}s, exit={}\nstdout tail:\n{}\nstderr tail:\n{}",
+                mErrorCode, mCommand, args, std::filesystem::current_path().string(),
+                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count(),
+                status.exit_code, out_tail, err_tail);
+            warn(mError);
         }
         return status;
     }
@@ -93,14 +124,22 @@ public:
     explicit ProcessProvider(std::string command, TransportOptions opts = {})
         : mCommand(std::move(command)), mOpts(std::move(opts)) {}
 
+    const std::string& error() const { return mError; }
+    const std::string& error_code() const { return mErrorCode; }
+    bool cancelled() const { return mCancelled; }
+
     bool describe(std::string& name_out) override {
         bool seen = false;
         auto status = invoke("describe", [&](const nlohmann::json& ev) {
             if (ev.value("event", "") != "describe") return;
-            name_out = ev.value("name", "unknown");
-            seen = true;
+            name_out = ev.value("name", "");
+            seen = !name_out.empty() && ev.value("protocol", 0) == 1;
         });
-        return seen && status.exit_code == 0;
+        if (!seen && mError.empty()) {
+            mErrorCode = "provider_protocol";
+            mError = "Provider did not report a valid describe (protocol 1, nonempty name)";
+        }
+        return seen && status.exit_code == 0 && mError.empty();
     }
 
     std::vector<Exercise> exercises() override {
@@ -131,6 +170,8 @@ public:
             }
             found.push_back(std::move(ex));
         });
+
+        if (!mError.empty()) found.clear();
 
         // 比较器而非 ranges 投影:clang 20(MSVC 目标)对跨模块类型的
         // ranges 投影在 PCM 代码生成阶段 ICE(Windows CI 实测)。
@@ -195,7 +236,11 @@ public:
 
         // 没收到 verdict 事件 = Provider 中途死了、输出被截断、或被活性
         // 超时终止。绝不能当成通过——原始输出原样交给学习者,让他看见真相。
-        if (!got_verdict) {
+        if (!got_verdict || !mError.empty()) {
+            if (mError.empty()) {
+                mErrorCode = "provider_protocol";
+                mError = std::format("Provider did not report a verdict for '{}'", ex.id);
+            }
             verdict.outcome = Outcome::Fail;
             if (status.idle_killed) {
                 verdict.output += std::format(
@@ -209,6 +254,7 @@ public:
                     "[d2x] provider did not report a verdict for '{}'", ex.id);
             }
         }
+        if (!mError.empty()) verdict.output += "\n" + mError;
         return verdict;
     }
 };
