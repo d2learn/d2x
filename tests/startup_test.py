@@ -58,13 +58,15 @@ def provider():
 
 
 class Startup(unittest.TestCase):
-    def run_case(self, mode='ok', config=None, env=None, ui='events'):
+    def run_case(self, mode='ok', config=None, env=None, ui='events', omit_startup=False):
         with tempfile.TemporaryDirectory(prefix='d2x startup ') as folder:
             root = Path(folder)
             quote = (lambda s: '"' + s + '"') if os.name == 'nt' else shlex.quote
             command = ' '.join(quote(s) for s in [sys.executable, str(Path(__file__).resolve()), '--provider'])
             data = {'buildtools': command, 'provider_startup_timeout': 5, 'editor': ''}
             data.update(config or {})
+            if omit_startup:
+                data.pop("provider_startup_timeout")
             (root / '.d2x.json').write_text(json.dumps(data))
             (root / 'one.txt').write_text('one')
             settings = {**os.environ, 'TEST_MODE': mode, 'D2X_PROVIDER_IDLE_TIMEOUT': '1', **(env or {})}
@@ -73,10 +75,35 @@ class Startup(unittest.TestCase):
                                cwd=root, env=settings, capture_output=True, encoding='utf-8', errors='replace', timeout=15)
             self.assertLess(time.monotonic() - start, 12)
             events = [json.loads(line) for line in p.stdout.splitlines()] if ui == 'events' else []
+            if (root / 'child.pid').exists():
+                child = int((root / 'child.pid').read_text())
+                def running():
+                    if os.name == 'nt':
+                        import ctypes
+                        api = ctypes.windll.kernel32
+                        api.OpenProcess.restype = ctypes.c_void_p
+                        api.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+                        api.CloseHandle.argtypes = [ctypes.c_void_p]
+                        handle = api.OpenProcess(0x1000, False, child)
+                        if not handle:
+                            return False
+                        code = ctypes.c_ulong()
+                        ok = api.GetExitCodeProcess(handle, ctypes.byref(code))
+                        api.CloseHandle(handle)
+                        return bool(ok and code.value == 259)
+                    state = subprocess.run(['ps', '-o', 'stat=', '-p', str(child)], capture_output=True, text=True).stdout.strip()
+                    return bool(state and not state.startswith(('Z', 'X')))
+                limit = time.monotonic() + 2
+                while running() and time.monotonic() < limit:
+                    time.sleep(.05)
+                self.assertFalse(running(), 'Provider descendant survived timeout')
             logs = {path.name: path.read_text(errors='replace') for path in (root / '.d2x').glob('provider.*.log')}
             return p, events, logs
 
     def test_old_config_and_slow_start(self):
+        default, events, _ = self.run_case(omit_startup=True)
+        self.assertEqual(default.returncode, 0)
+        self.assertEqual(next(e for e in events if e['event'] == 'preparing')['timeout'], 900)
         for mode in ['ok', 'slow', 'flood']:
             p, events, logs = self.run_case(mode)
             self.assertEqual(p.returncode, 0, p.stderr)
@@ -148,6 +175,26 @@ class Startup(unittest.TestCase):
                         os.kill(child, 0)
                 self.assertFalse((root / '.d2x/checker.lock').exists())
 
+    def test_install_coordinates_course_dependencies(self):
+        for failure in [False, True]:
+            with tempfile.TemporaryDirectory(prefix='d2x install ') as folder:
+                root = Path(folder)
+                bin_dir = root / 'bin'
+                bin_dir.mkdir()
+                command = f'"{sys.executable}" "{Path(__file__).resolve()}" --xlings'
+                shim = bin_dir / ('xlings.cmd' if os.name == 'nt' else 'xlings')
+                shim.write_text(('@echo off\n' + command + ' %*\n') if os.name == 'nt' else
+                                '#!/bin/sh\nexec ' + command + ' "$@"\n')
+                shim.chmod(0o755)
+                p = subprocess.run([os.environ['D2X'], 'install', 'demo'], cwd=root,
+                                   env={**os.environ, 'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
+                                        'TEST_INSTALL_FAIL_DEP': '1' if failure else '0'},
+                                   capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10)
+                self.assertEqual(p.returncode, 1 if failure else 0, p.stdout + p.stderr)
+                self.assertTrue((root / 'demo/dependencies-attempted').exists())
+                if failure:
+                    self.assertNotIn('安装完成', p.stdout)
+
     def test_print_preparing_and_error(self):
         p, _, _ = self.run_case('empty', ui='print')
         self.assertNotEqual(p.returncode, 0)
@@ -156,7 +203,20 @@ class Startup(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if '--provider' in sys.argv:
+    if '--xlings' in sys.argv:
+        args = sys.argv[2:]
+        if args == ['--version']:
+            print('xlings 2026.10.20.3')
+        elif args == ['install', 'd2x:demo', '-y']:
+            Path('demo').mkdir()
+            Path('demo/.d2x.json').write_text('{}')
+            Path('demo/.xlings.json').write_text('{"workspace":{}}')
+        elif args == ['install', '-y']:
+            Path('dependencies-attempted').write_text(str(Path.cwd()))
+            sys.exit(7 if os.environ['TEST_INSTALL_FAIL_DEP'] == '1' else 0)
+        else:
+            sys.exit(99)
+    elif '--provider' in sys.argv:
         provider()
     else:
         unittest.main()

@@ -76,6 +76,7 @@ export class ProcessProvider final : public IExerciseProvider {
 
     std::string mError;
     std::string mErrorCode;
+    std::string mContext;
     bool mCancelled = false;
 
     process::RunStatus invoke(std::string_view args,
@@ -109,6 +110,11 @@ export class ProcessProvider final : public IExerciseProvider {
         else if (status.idle_killed) mErrorCode = "idle_timeout";
         else if (status.exit_code != 0) mErrorCode = "provider_exit";
         else if (protocol_error) mErrorCode = "provider_protocol";
+        mContext = std::format(
+            "command='{} {}', cwd='{}', elapsed={}s, exit={}\nstdout tail:\n{}\nstderr tail:\n{}",
+            mCommand, args, std::filesystem::current_path().string(),
+            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count(),
+            status.exit_code, out_tail, err_tail);
         if (!mErrorCode.empty()) {
             mError = std::format(
                 "Provider {}: command='{} {}', cwd='{}', elapsed={}s, exit={}\nstdout tail:\n{}\nstderr tail:\n{}",
@@ -137,7 +143,7 @@ public:
         });
         if (!seen && mError.empty()) {
             mErrorCode = "provider_protocol";
-            mError = "Provider did not report a valid describe (protocol 1, nonempty name)";
+            mError = "Provider did not report a valid describe (protocol 1, nonempty name)\n" + mContext;
         }
         return seen && status.exit_code == 0 && mError.empty();
     }
@@ -239,7 +245,7 @@ public:
         if (!got_verdict || !mError.empty()) {
             if (mError.empty()) {
                 mErrorCode = "provider_protocol";
-                mError = std::format("Provider did not report a verdict for '{}'", ex.id);
+                mError = std::format("Provider did not report a verdict for '{}'\n{}", ex.id, mContext);
             }
             verdict.outcome = Outcome::Fail;
             if (status.idle_killed) {
